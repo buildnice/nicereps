@@ -1,0 +1,15 @@
+appId: com.buildnice.nicereps
+name: Stats show the logged volume, PR and lift
+---
+- runFlow: common/launch.yml
+- runFlow: common/bench-workout.yml
+- back
+- scrollUntilVisible:
+    element: "Show all, .*1 lift"
+- tapOn: "Show all, .*1 lift"
+- assertVisible: 300 kg
+- assertVisible: ".*Weight 60 kg × 5.*"
+- scrollUntilVisible:
+    element: "Barbell Bench Press - Medium Grip, Best e1RM.*"
+- tapOn: "Barbell Bench Press - Medium Grip, Best e1RM.*"
+- assertVisible: History

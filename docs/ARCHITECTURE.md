@@ -1,0 +1,54 @@
+# Architecture and delivery
+
+## Runtime boundaries
+
+Use React Native, Expo, and Expo Router for one mobile application. Router defines the entry, pages, and bounded sheets; it does not create tabs. Use a single package until a concrete need for a workspace appears.
+
+```text
+app/                 Expo Router entry, page and sheet routes only
+src/ui/              screens, components, themes, accessibility
+src/domain/          pure TypeScript rules and operations; no React or Expo imports
+src/data/            SQL schema, migrations, queries, repository contract
+src/platform/        OP-SQLite, notifications, local files, photos, sharing
+modules/             local Expo native modules
+cli/                 Node entry, local SQLite adapter, seed fixtures
+assets/catalog/      licensed exercise data and local images
+tests/               domain, CLI, import, and migration proof; fixtures/ holds SQL dumps of shipped schema versions, loaded as existing user data
+.maestro/            Android end-to-end flows on a release build; common/ holds subflows
+```
+
+App and CLI call the same domain operations. Both use the same schema and migration definitions; their SQLite adapters differ because a React Native native module cannot run as the CLI's Node runtime. The CLI opens an explicit local database file, seeds realistic workouts, runs operations and statistics, and previews/applies imports. It creates test data, not user accounts. Keep file, clock, ID, and notification boundaries explicit so domain tests run without a device.
+
+## Persistence
+
+Use **OP-SQLite** on iOS and Android. The first implementation slice must prove an Expo dev build with the chosen SDK and `expo-dev-client` on Android; iOS follows before release proof. The app does not include `expo-updates`, so it has no update polling or runtime network requirement. Android release builds drop the `INTERNET` permission through `plugins/release-no-internet.js`, so the OS blocks any network access; debug and development builds keep it for Metro. Android release builds also run R8 (`expo-build-properties`) to shrink, optimise and obfuscate code and drop unused resources; the AAB carries the mapping file, so Play deobfuscates crash traces.
+
+Use CUIDs for stable records and explicit schema versions. Store dates with the local workout date and enough timezone context to avoid travel changing historical calendar placement. Keep template plans, scheduled occurrences, and workout records distinct. Snapshot the exercise mapping and optional-field presentation used by a workout. A photo row holds its date and file name; image bytes live in app-private files, outside SQLite. Use foreign keys, transactions, and migrations. Verify durability after forced app termination and recovery from an unfinished workout.
+
+Bundle the exercise catalog and image assets. Inspect and normalize incomplete source fields before packaging; retain a source/license notice. Measure package size and compress images as needed. No runtime content fetch.
+
+## Local alerts
+
+Rest and interval alerts are local notifications scheduled for the timer's end. On Android, declare `SCHEDULE_EXACT_ALARM`, not `USE_EXACT_ALARM`: Google Play limits the latter to alarm-clock, timer, and calendar apps. Android 13+ does not grant `SCHEDULE_EXACT_ALARM` to new installs, so the first time a timer is used, send the user to the app's own exact-alarm setting once (`expo-intent-launcher` with `package:` data). Without the grant, Android fires the alert inexactly, about 90 s late in testing; the in-app timer stays accurate.
+
+expo-notifications cannot show a chronometer, so the live countdown is a local Expo module, `modules/rest-countdown` (Android only). When the app goes to the background, `src/platform/notifications.ts` passes it each phase's label and end time; it posts an ongoing notification on a silent low-importance `rest-countdown` channel, using the system countdown chronometer and a timeout at the phase end, and an alarm at that end posts the next phase or, after the last, clears it (Android 7 ignores the timeout). The end alerts keep their own Sound/Haptics channels. Returning to the foreground, a timer change and erase clear it. On iOS, `src/platform/restActivity.ios.tsx` is a Live Activity built with first-party `expo-widgets` and `@expo/ui` SwiftUI views; its config plugin adds the widget extension target and the `group.com.buildnice.nicereps` app group. `expo-live-activity` was rejected: its fixed template has no stale date, so it cannot show **Rest timer up!** after the phase ends. `expo-widgets` is excluded from Android autolinking in `package.json`, and Android resolves the no-op `restActivity.tsx` instead. `scheduleTimer`, the foreground listener and app launch map the timer to the current phase with `livePhase` in `src/domain/rules.ts`, update the activity with a stale date at the phase end, start it only in the foreground (ActivityKit requires it), and end it when the timer is gone or past its last phase. The activity is silent; the end alerts keep following Sound and Haptics. Without push, iOS cannot advance it to the next interval phase while the app is suspended.
+
+Planned-workout reminders are local notifications for the next 14 days, and measurement reminders for their next 14 dates, rescheduled whenever the home screen opens or returns to the foreground, or a plan, template, or the setting changes. Each is a dated notification rather than a repeating trigger, because fortnightly and last-day-of-month dates have no native trigger; the domain's `repeatDates` computes them. The short horizon keeps them under the iOS limit of 64 pending notifications alongside timer alerts. Timer and reminder notifications use separate identifiers so neither cancels the other. Timer notifications post to one of four Android channels, one per combination of the Sound and Haptics settings, because a channel's sound and vibration cannot change after creation; changing either setting reschedules the pending timer onto the matching channel. The chime is bundled through the expo-notifications `sounds` option and played in the foreground with expo-audio, mixing with other audio. Reanimated drops view updates made while Android pauses the activity, so a set row remounts its fill when the app returns to the foreground; otherwise a set completed just before leaving shows no fill.
+
+## Portability and trust boundaries
+
+Export a versioned ZIP with CSV tables, manifest, and referenced original photos. Keep IDs and references so importing into the same or another installation preserves relationships. Validate archive size, paths, schema version, CUID format, required columns, references, units, dates, and numeric ranges before mutation. Preview duplicate actions. Apply selected rows in one transaction, then move the staged photo files that a photo row references into the photo folder. **Update** changes only populated imported columns; **Replace** applies the complete row, including blank values where allowed. The blank CSV template has headers and examples but no IDs. Import validates inside a transaction that it rolls back, so SQLite's own constraints check every row; it commits only when nothing failed. Other apps' exports are parsed in `src/domain/apps.ts` into the same tables and then go through the same preview and apply; their exercise names are resolved there, and the per-app choices are stored in `app_exercise`, which export and import leave out. Export prefixes a cell that starts with `=`, `+`, `-`, `@`, tab or carriage return with `'`, and import strips it. Export yields between photo files so a large archive does not block the interface.
+
+**Export data** builds the archive in the cache and copies it into a folder picked with `Directory.pickDirectoryAsync`, then deletes the cached copy; a picker cancel writes nothing. The backup builds the same archive in the cache, then copies it over `nicereps-backup.zip` in the backup folder with expo-file-system's native copy: a Storage Access Framework tree on Android, kept by its persisted permission, or Documents on iOS. A JavaScript file handle on a SAF document loses its descriptor mid-write, so the copy stays native. The folder URI, last backup time and last error, plus the last export and reminder dismissal times, are device-only settings that export and import skip.
+
+## PR and release delivery
+
+- CI runs type, lint, domain/CLI tests, migration and CSV round trips, and offline checks on every PR. Native checks build a development client for iOS and Android.
+- No over-the-air updates (decided 2026-10-10; may be revisited after the public release). PRs are tested with installable builds: a local `expo run:android --variant release` build or a downloaded EAS `preview` build, both standalone, or a development build with Metro for UI iteration. The PR links the tested commit and real-device proof.
+- Before a release, run the Maestro suite on a release build: `npm run e2e` against a local emulator, or the `Android e2e` EAS workflow (`npx eas-cli workflow:run .eas/workflows/e2e-android.yml`), which builds the `preview` profile and runs `.maestro/` on an EAS emulator. Each flow starts from a cleared install in airplane mode.
+- Release builds go through App Store and Google Play. Publish source and an installable signed Android build from the repository. Keep release signing credentials in CI secrets; never commit them.
+- No store submission, public release, or production update is implied by this documentation task.
+
+## Performance and proof
+
+Measure OP-SQLite on a real lower-end device with several years of workout fixtures, catalog search, set completion/autosave, weekly muscle totals, and CSV import. Record fixture size and timings. Protect data integrity before tuning SQLite flags. Verify app behavior with radios off, in background, after a kill/restart, and across schema upgrades. Capture UI screenshots from the running app and CLI output from the actual shared operations.

@@ -1,0 +1,8 @@
+appId: com.buildnice.nicereps
+---
+# Fresh workout with one bench set of 60 x 5, finished.
+- tapOn: Start workout
+- tapOn: Fresh workout
+- runFlow: {file: add-exercise.yml, env: {QUERY: Bench Press - Medium, NAME: Barbell Bench Press - Medium Grip}}
+- runFlow: {file: set.yml, env: {N: "1", WEIGHT: "60", REPS: "5"}}
+- runFlow: finish.yml

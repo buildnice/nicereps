@@ -1,0 +1,18 @@
+appId: com.buildnice.nicereps
+name: Erase all local data returns to first run
+---
+- runFlow: common/launch.yml
+- runFlow: common/bench-workout.yml
+- back
+- assertNotVisible: Getting started
+- tapOn: Settings
+- scrollUntilVisible:
+    element: Erase all local data
+- tapOn: Erase all local data
+# The confirm button expands below the fold on a small screen.
+- scrollUntilVisible:
+    element: Erase everything
+- tapOn: Erase everything
+- tapOn: Tap again to erase all local data
+- assertVisible: Getting started
+- assertNotVisible: "Workout, .*1 set"

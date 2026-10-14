@@ -1,0 +1,13 @@
+appId: com.buildnice.nicereps
+---
+# Finishes the open workout and lands on its page. The header button scrolls away on short screens.
+- scrollUntilVisible:
+    element: Finish
+    direction: UP
+- tapOn: Finish
+- runFlow:
+    when:
+      visible: .*tap Finish again.*
+    commands:
+      - tapOn: Finish
+- assertVisible: "Duration, .*"

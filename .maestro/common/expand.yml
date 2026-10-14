@@ -1,0 +1,19 @@
+appId: com.buildnice.nicereps
+---
+# Completing the last set collapses the exercise shortly after, or later after the alarm prompt; reopen NAME if so.
+- extendedWaitUntil:
+    notVisible: Add set
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      notVisible: Add set
+    commands:
+      - tapOn: ${NAME}
+# Centre it so the rest timer dock doesn't cover the tap on short screens.
+- scrollUntilVisible:
+    element: Add set
+    centerElement: true
+# A tap during scroll momentum only stops the scroll.
+- waitForAnimationToEnd:
+    timeout: 1500

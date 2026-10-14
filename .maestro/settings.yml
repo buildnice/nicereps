@@ -1,0 +1,29 @@
+appId: com.buildnice.nicereps
+name: Units, theme and home sections persist
+---
+- runFlow: common/launch.yml
+- runFlow: common/bench-workout.yml
+- back
+- tapOn: Settings
+- tapOn: Light
+- scrollUntilVisible:
+    element: Show Recent
+- tapOn: Show Recent
+- scrollUntilVisible:
+    element: lb
+- tapOn: lb
+- back
+- assertNotVisible: "Workout, .*1 set"
+# 60 kg shows as 132.3 lb on the workout page after a restart.
+- stopApp
+- launchApp
+- assertNotVisible: "Workout, .*1 set"
+- tapOn: Settings
+- scrollUntilVisible:
+    element: Show Recent
+- tapOn: Show Recent
+- back
+- scrollUntilVisible:
+    element: "Workout, .*1 set"
+- tapOn: "Workout, .*1 set"
+- assertVisible: "Volume, .*lb"

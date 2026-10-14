@@ -1,0 +1,34 @@
+appId: com.buildnice.nicereps
+name: Log sets, rest timer, undo delete, finish
+---
+- runFlow: common/launch.yml
+- tapOn: Start workout
+- tapOn: Fresh workout
+- assertVisible: Empty workout. Add the first exercise.
+- runFlow: {file: common/add-exercise.yml, env: {QUERY: Bench Press - Medium, NAME: Barbell Bench Press - Medium Grip}}
+- runFlow: {file: common/set.yml, env: {N: "1", WEIGHT: "60", REPS: "5"}}
+- assertVisible: Stop timer
+- tapOn: Stop timer
+- assertNotVisible: Stop timer
+# A new set copies the previous one.
+- runFlow: {file: common/expand.yml, env: {NAME: Barbell Bench Press - Medium Grip}}
+- tapOn: Add set
+- scrollUntilVisible:
+    element: "Set 2 weight, 60"
+- swipe:
+    from: "Set 2 reps.*"
+    direction: LEFT
+- tapOn: Delete set 2
+- assertVisible: Set deleted, undo
+- tapOn: Set deleted, undo
+- scrollUntilVisible:
+    element: "Set 2 weight, 60"
+# Tapping the set number cycles working, warm-up, drop.
+- tapOn: "Set 2, normal, change type"
+- assertVisible: "Set 2, warm-up, change type"
+- tapOn: Complete set 2
+- runFlow: common/finish.yml
+- assertVisible: "Working sets, 1"
+- assertVisible: "Volume, 300 kg"
+- scrollUntilVisible:
+    element: "Barbell Bench Press - Medium Grip"

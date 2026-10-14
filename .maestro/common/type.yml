@@ -1,0 +1,11 @@
+appId: com.buildnice.nicereps
+---
+# Types KEYS on the in-app keypad, one key per character ("." for decimal point; ids are regexes, so it is escaped).
+- evalScript: ${output.i = 0}
+- repeat:
+    while:
+      true: ${output.i < KEYS.length}
+    commands:
+      - tapOn:
+          id: "key-${KEYS[output.i] == '.' ? '[.]' : KEYS[output.i]}"
+      - evalScript: ${output.i = output.i + 1}

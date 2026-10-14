@@ -1,0 +1,60 @@
+appId: com.buildnice.nicereps
+name: Finished workout feeds home, templates, repeat and delete
+---
+- runFlow: common/launch.yml
+- runFlow: common/bench-workout.yml
+- scrollUntilVisible:
+    element: Save as template
+- tapOn: Save as template
+- eraseText
+- inputText: Push A
+- hideKeyboard
+- tapOn: Save
+- assertVisible: Saved template Push A
+- back
+# Home reflects the workout in Recent, the heatmap and the Templates section.
+- assertNotVisible: Getting started
+- assertVisible: ".*1 working set.*today"
+- scrollUntilVisible:
+    element: "Workout, .*1 set"
+- scrollUntilVisible:
+    element: "Push A, .*"
+- tapOn: "Push A, .*"
+- scrollUntilVisible:
+    element: Start
+- tapOn: Start
+- assertVisible: Barbell Bench Press - Medium Grip
+- scrollUntilVisible:
+    element: Discard workout
+- tapOn: Discard workout
+- tapOn: Tap again to discard workout
+- scrollUntilVisible:
+    element: Start workout
+    direction: UP
+# Repeat from the workout page copies its exercises.
+- scrollUntilVisible:
+    element: "Workout, .*1 set"
+- tapOn: "Workout, .*1 set"
+- scrollUntilVisible:
+    element: Repeat workout
+- tapOn: Repeat workout
+- assertVisible: Barbell Bench Press - Medium Grip
+- scrollUntilVisible:
+    element: Discard workout
+- tapOn: Discard workout
+- tapOn: Tap again to discard workout
+- scrollUntilVisible:
+    element: "Workout, .*1 set"
+# Deleting the only workout empties Recent and today's heatmap day.
+- tapOn: "Workout, .*1 set"
+- scrollUntilVisible:
+    element: Delete workout
+- tapOn: Delete workout
+- tapOn: Tap again to delete workout
+- scrollUntilVisible:
+    element: "0 kg past week.*"
+    direction: UP
+- assertNotVisible: Recent
+- scrollUntilVisible:
+    element: ".*0 working sets.*today"
+    direction: UP

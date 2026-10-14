@@ -1,0 +1,9 @@
+appId: com.buildnice.nicereps
+---
+# Fresh install state, offline: the app must work with every radio off.
+- setAirplaneMode: enabled
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+- assertVisible: Getting started

@@ -1,0 +1,24 @@
+appId: com.buildnice.nicereps
+name: Log a body measurement
+---
+- runFlow: common/launch.yml
+- scrollUntilVisible:
+    element: Log measurements
+- tapOn: Log measurements
+- tapOn: "Body weight, kg"
+- scrollUntilVisible:
+    element: "Body weight in kg, .*"
+- tapOn: "Body weight in kg, .*"
+- runFlow: {file: common/type.yml, env: {KEYS: "80.5"}}
+- tapOn: Done
+- scrollUntilVisible:
+    element: "Body weight in kg, 80[.]5"
+- scrollUntilVisible:
+    element: Save 1 measurement
+- tapOn: Save 1 measurement
+- scrollUntilVisible:
+    element: ".*80[.]5.*"
+- stopApp
+- launchApp
+- scrollUntilVisible:
+    element: ".*80[.]5.*"

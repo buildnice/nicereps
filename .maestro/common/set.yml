@@ -1,0 +1,21 @@
+appId: com.buildnice.nicereps
+---
+# Enters WEIGHT x REPS on set N of the open exercise and completes it.
+- tapOn: Set ${N} weight.*
+- runFlow: {file: type.yml, env: {KEYS: "${WEIGHT}"}}
+- tapOn: Set ${N} reps.*
+- runFlow: {file: type.yml, env: {KEYS: "${REPS}"}}
+- tapOn: Done
+- assertVisible: Set ${N} weight, ${WEIGHT}
+- tapOn: Complete set ${N}
+# The first timer sends the user to the exact-alarm setting once.
+- extendedWaitUntil:
+    visible: Allow setting alarms and reminders
+    timeout: 3000
+    optional: true
+- runFlow:
+    when:
+      visible: Allow setting alarms and reminders
+    commands:
+      - tapOn: Allow setting alarms and reminders
+      - back

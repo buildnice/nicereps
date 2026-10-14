@@ -1,0 +1,136 @@
+{
+  "expo": {
+    "name": "nicereps",
+    "slug": "nicereps",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "nicereps",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.buildnice.nicereps",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true
+      }
+    },
+    "web": {
+      "output": "static"
+    },
+    "android": {
+      "package": "com.buildnice.nicereps",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b0b0c",
+        "monochromeImage": "./assets/monochrome-icon.png"
+      },
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "com.google.android.c2dm.permission.RECEIVE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "./plugins/release-no-internet",
+      "./plugins/r8-optimize",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "sounds": [
+            "./assets/timer.wav"
+          ]
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "nicereps opens your photo library so you can add progress photos. They stay on this device.",
+          "cameraPermission": "nicereps uses the camera to take progress photos. They stay on this device.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0b0b0c",
+          "image": "./assets/adaptive-icon.png",
+          "imageWidth": 200
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "Montserrat",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/Montserrat_400Regular.ttf",
+                    "weight": 400
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat_600SemiBold.ttf",
+                    "weight": 600
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat_700Bold.ttf",
+                    "weight": 700
+                  },
+                  {
+                    "path": "./assets/fonts/Montserrat_800ExtraBold.ttf",
+                    "weight": 800
+                  }
+                ]
+              }
+            ]
+          },
+          "ios": {
+            "fonts": [
+              "./assets/fonts/Montserrat_400Regular.ttf",
+              "./assets/fonts/Montserrat_600SemiBold.ttf",
+              "./assets/fonts/Montserrat_700Bold.ttf",
+              "./assets/fonts/Montserrat_800ExtraBold.ttf"
+            ]
+          }
+        }
+      ],
+      "expo-widgets",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2fb25a7a-b007-4eec-9d86-33d892bd4d3c"
+      }
+    },
+    "owner": "buildnice"
+  }
+}

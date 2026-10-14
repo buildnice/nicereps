@@ -1,0 +1,8 @@
+appId: com.buildnice.nicereps
+---
+# Searches QUERY and adds catalog exercise NAME (QUERY must differ from NAME, or the tap hits the search field).
+- tapOn: Add exercise
+- tapOn: Search exercises
+- inputText: ${QUERY}
+- hideKeyboard
+- tapOn: ${NAME}
