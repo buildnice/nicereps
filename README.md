@@ -13,9 +13,11 @@ A fast, offline workout log for Android and iOS. Everything stays on your phone:
   <img src=".github/readme/5-stats.png" width="24%" alt="Stats with volume and records">
 </p>
 
-## Join the Android beta
+## Join the beta
 
 Google Play needs 12 testers using nicereps for 14 days before it can be published. To help, [join the tester group](https://groups.google.com/g/buildnice-closed-testers), then [opt in and install](https://play.google.com/apps/testing/com.buildnice.nicereps). Please stay opted in for the 14 days.
+
+On iPhone? [Join the TestFlight beta](https://testflight.apple.com/join/SYHhANWd).
 
 ## Features
 
