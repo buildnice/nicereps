@@ -80,7 +80,7 @@ Templates are plans, not workouts. A template row expands to its exercises with 
 | warning | `#d9b36a` | `#94691f` |
 | heat 0–4 | `#26262a` `#4a4a52` `#76767e` `#adadb4` `#f4f4f5` | `#e6e6e3` `#c4c4c0` `#8e8e8c` `#55555a` `#111113` |
 
-Heat levels: 0 sets, under 5, under 9, under 15, 15 or more. Planned days from today on that are not yet done use a dashed `muted` outline; other days after today are hollow with a solid `faint` outline. The legend names both. Today gets a `text` ring; another selected day gets a `muted` ring.
+Heat levels: 0 sets, under 5, under 9, under 15, 15 or more. Planned days from today on that are not yet done use a dashed `muted` outline; other days after today are hollow with a solid `faint` outline. The legend names both. Today carries a centre `text` dot with a 2 dp `surface` halo, so it reads on every heat level and never draws past its own dot. The selected day gets a 2 dp `muted` ring 1 dp out, which stays clear of the neighbouring dots.
 
 **Spacing:** xs 4, s 8, m 12, l 16, xl 20, xxl 28. **Radius:** s 10, m 16, l 24, pill 999.
 
