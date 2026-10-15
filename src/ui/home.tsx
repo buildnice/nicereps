@@ -13,6 +13,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { localDate, phaseAt } from '@/domain/rules';
 import * as ops from '@/domain/workouts';
 import { db, readSetting, writeSetting } from '@/platform/db';
+import { syncHealth } from '@/platform/health';
 import type { Timer } from '@/platform/notifications';
 
 import { Measurements } from './measurements';
@@ -93,10 +94,16 @@ export function Home({ onStart, onResume, onEdit, active }: { onStart: Start; on
       if (state !== 'active') return;
       setTemplates(ops.listTemplates(db));
       void remind();
+      void syncHealth();
     });
     return () => sub.remove();
   }, []);
-  useFocusEffect(useCallback(() => setTemplates(ops.listTemplates(db)), []));
+  useFocusEffect(
+    useCallback(() => {
+      setTemplates(ops.listTemplates(db));
+      void syncHealth();
+    }, []),
+  );
 
   return (
     <>

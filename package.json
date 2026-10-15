@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo/ui": "~57.0.23",
+    "@kingstinct/react-native-healthkit": "^16.2.0",
     "@op-engineering/op-sqlite": "^18.2.5",
     "@paralleldrive/cuid2": "^3.3.0",
     "@shopify/react-native-skia": "2.6.2",
@@ -30,6 +31,8 @@
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-health-connect": "^4.1.3",
+    "react-native-nitro-modules": "^0.37.1",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
@@ -61,7 +64,8 @@
     "autolinking": {
       "android": {
         "exclude": [
-          "expo-widgets"
+          "expo-widgets",
+          "react-native-nitro-modules"
         ]
       }
     }

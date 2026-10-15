@@ -7,6 +7,7 @@ import { exerciseId, templateId } from '../src/data/queries.ts';
 import { convert, localDate, pace, wholeIn } from '../src/domain/rules.ts';
 import * as measures from '../src/domain/measurements.ts';
 import { loadPlates } from '../src/domain/plates.ts';
+import * as health from '../src/domain/health.ts';
 import * as data from '../src/domain/portability.ts';
 import * as ops from '../src/domain/workouts.ts';
 import { openDb, readDb } from './db.ts';
@@ -93,6 +94,8 @@ const usage = `Usage: nicereps <db-file> <command> [args]
                                         --map matches another app's exercise name to one of ours or a new custom exercise;
                                         --apply writes it, all or nothing, and its photo files into DIR
   blank-template                        print the blank CSV template
+  health [--mark]                       records Health Connect or Apple Health still needs written or removed;
+                                        --mark records them as done
 FIELDS: --weight N (in the weightUnit setting) --reps N --target-reps N --type T --duration S --distance N (in the distanceUnit setting) --rounds N --recovery S
         --rest S --target-rpe N --rpe N --comment TEXT --options true|false --fields targetRpe,rpe,rest,comment,plates --done true|false
         ('' clears an optional field)`;
@@ -107,9 +110,10 @@ const parsed = parseArgs({
     ]),
     ),
     map: { type: 'string', multiple: true },
+    mark: { type: 'boolean' },
   },
 });
-const values = parsed.values as Record<string, string | undefined> & { map?: string[] };
+const values = parsed.values as Record<string, string | undefined> & { map?: string[]; mark?: boolean };
 const [file, command, ...args] = parsed.positionals;
 
 const required: Record<string, number> = {
@@ -639,6 +643,16 @@ try {
     case 'blank-template':
       process.stdout.write(data.blankTemplate);
       break;
+    case 'health': {
+      const changes = health.healthChanges(db);
+      for (const r of changes.write) console.log(`write  ${r.kind}  ${r.id}  ${r.kind === 'workout' ? `${r.title}  ${r.start}  ${r.end}` : `${r.date}  ${r.kg} kg`}`);
+      for (const r of changes.remove) console.log(`remove  ${r.kind}  ${r.id}`);
+      if (values.mark) {
+        health.markWritten(db, changes.write);
+        health.markRemoved(db, changes.remove);
+      }
+      break;
+    }
     default:
       console.error(usage);
       process.exit(2);

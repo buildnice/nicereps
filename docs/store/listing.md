@@ -37,6 +37,7 @@ Plan and track
 Your data
 - Works with mobile data and Wi-Fi off.
 - Export everything, photos included, to one ZIP file; import it on another phone.
+- Optionally write finished workouts and body weight to Health Connect or Apple Health on your phone.
 - Bring your history from Strong, Hevy, FitNotes or StrengthLog, or from a spreadsheet using the blank CSV template.
 - kg or lb, cm or in, km or mi, switched any time without changing what you logged.
 
@@ -51,6 +52,8 @@ Exercise instructions and images come from Free Exercise DB.
 
 - Play Data safety: no data collected, no data shared. Data is not encrypted in transit because none is sent. Users can delete data in the app (Settings → Erase all local data).
 - Play Health apps declaration: a fitness app storing workouts and body measurements on the device only.
+- Play Health Connect permissions declaration: write-only `WRITE_EXERCISE` and `WRITE_WEIGHT`, used when the user turns on Health Connect in Settings to write their finished workouts and body weight; nicereps reads no health data. Data written to Health Connect stays on the device, so Data safety stays no data collected or shared.
+- HealthKit: write-only workouts and body mass, used when the user turns on Apple Health in Settings; no HealthKit data is read, sent or used for advertising.
 - App Store privacy label: Data Not Collected.
 - Privacy policy: https://buildnice.app/nicereps/privacy/
 - Support email: support@buildnice.app. Support URL (App Store): https://buildnice.app/nicereps/

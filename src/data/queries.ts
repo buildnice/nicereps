@@ -463,3 +463,12 @@ export const deletePhoto = (db: Db, id: string) => {
   db.run('DELETE FROM photo WHERE id = ?', [id]);
   return file as string;
 };
+
+export const finishedWorkouts = (db: Db) => db.all('SELECT id, name, date, time_zone, started_at, finished_at FROM workout WHERE finished_at IS NOT NULL ORDER BY date, started_at');
+
+export const healthRecords = (db: Db) => db.all('SELECT id, kind, hash FROM health_record');
+
+export const writeHealthRecord = (db: Db, id: string, kind: string, hash: string) =>
+  db.run('INSERT INTO health_record (id, kind, hash) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET kind = excluded.kind, hash = excluded.hash', [id, kind, hash]);
+
+export const deleteHealthRecord = (db: Db, id: string) => db.run('DELETE FROM health_record WHERE id = ?', [id]);

@@ -76,7 +76,7 @@ const perUnit = { kg: 1, lb: 0.45359237, cm: 1, in: 2.54, km: 1, mi: 1.609344 };
 export type Unit = keyof typeof perUnit;
 export const convert = (value: number, from: Unit, to: Unit) => (from === to ? value : Math.round(((value * perUnit[from]) / perUnit[to]) * 10) / 10);
 export const wholeIn = (kg: number, unit: WeightUnit) => Math.round(kg / perUnit[unit]);
-const kg = (set: { weight: number; unit?: WeightUnit }) => set.weight * perUnit[set.unit ?? 'kg'];
+export const kg = (set: { weight: number; unit?: WeightUnit }) => set.weight * perUnit[set.unit ?? 'kg'];
 const load = (set: { weight: number; unit?: WeightUnit; bodyWeight?: number }) => kg(set) + (set.bodyWeight ?? 0);
 
 export const volume = (sets: { type: SetType; completed: boolean; weight: number; unit?: WeightUnit; reps: number; bodyWeight?: number }[]) =>

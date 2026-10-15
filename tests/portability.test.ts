@@ -53,7 +53,7 @@ test('the export archive holds every row of every table, a manifest and every ph
   db.run("INSERT INTO app_exercise (app, name, exercise_id) SELECT 'strong', 'Bench Press (Barbell)', id FROM exercise LIMIT 1");
   const photos = { 'a.jpg': new Uint8Array([1, 2, 3]), 'b.jpg': new Uint8Array([4, 5]), '../escape.jpg': new Uint8Array([6]) };
   const { result, files } = await exported(db, photos);
-  const tables = db.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'app_exercise'").map((t) => t.name as string);
+  const tables = db.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('app_exercise', 'health_record')").map((t) => t.name as string);
   assert.equal(tables.length, 16);
   assert.equal(files['app_exercise.csv'], undefined);
   for (const table of tables) {
@@ -68,7 +68,7 @@ test('the export archive holds every row of every table, a manifest and every ph
   const manifest = JSON.parse(strFromU8(files['manifest.json']));
   assert.deepEqual(
     { ...manifest, tables: undefined },
-    { format: 'nicereps', version: 1, schema: 15, exportedAt: '2026-10-11T00:00:00.000Z', tables: undefined, photos: ['a.jpg', 'b.jpg'] },
+    { format: 'nicereps', version: 1, schema: 16, exportedAt: '2026-10-11T00:00:00.000Z', tables: undefined, photos: ['a.jpg', 'b.jpg'] },
   );
   assert.equal(manifest.tables.photo, 4);
   assert.equal(Object.keys(files).length, tables.length + 3);
@@ -242,7 +242,7 @@ test('malformed imports are rejected with no partial writes', async () => {
     ['bad date', rezip(chunks, (f) => (f['measurement.csv'] = strToU8(strFromU8(f['measurement.csv']).replace('2026-10-01', '2026-13-01')))), /date must be/],
     ['unknown column', rezip(chunks, (f) => (f['setting.csv'] = strToU8('key,value,extra\r\nweightUnit,lb,1\r\n'))), /unknown columns extra/],
     ['path', rezip(chunks, (f) => (f['../evil.csv'] = strToU8('x'))), /Unexpected file in archive: \.\.\/evil\.csv/],
-    ['schema', rezip(chunks, (f) => (f['manifest.json'] = strToU8(strFromU8(f['manifest.json']).replace('"schema": 15', '"schema": 99')))), /schema version 99/],
+    ['schema', rezip(chunks, (f) => (f['manifest.json'] = strToU8(strFromU8(f['manifest.json']).replace('"schema": 16', '"schema": 99')))), /schema version 99/],
     ['no manifest', rezip(chunks, (f) => delete f['manifest.json']), /Not a nicereps export/],
     ['broken csv', rezip(chunks, (f) => (f['template.csv'] = strToU8('id,name\r\n"a"b\r\n'))), /Malformed CSV/],
     ['too large', rezip(chunks, (f) => (f['template.csv'] = new Uint8Array(65 * 1024 * 1024).fill(65))), /more than 64 MB/],
@@ -258,17 +258,17 @@ test('malformed imports are rejected with no partial writes', async () => {
   }
 });
 
-test('backup settings stay on the device: export leaves them out and import skips them', async () => {
+test('backup and health settings stay on the device: export leaves them out and import skips them', async () => {
   const db = clean();
-  for (const key of ['backupFolder', 'backupAt', 'backupError', 'backupDismissedAt', 'exportedAt']) db.run('INSERT INTO setting (key, value) VALUES (?, ?)', [key, 'x']);
+  for (const key of ['backupFolder', 'backupAt', 'backupError', 'backupDismissedAt', 'exportedAt', 'health', 'healthAt', 'healthError']) db.run('INSERT INTO setting (key, value) VALUES (?, ?)', [key, 'x']);
   const chunks = await archive(db);
-  assert.doesNotMatch(strFromU8(unzipSync(Buffer.concat(chunks))['setting.csv']), /backup|exportedAt/);
+  assert.doesNotMatch(strFromU8(unzipSync(Buffer.concat(chunks))['setting.csv']), /backup|exportedAt|health/);
   const target = openDb(':memory:');
   target.run("INSERT INTO setting (key, value) VALUES ('backupFolder', 'mine')");
-  const imp = readImport(target, rezip(chunks, (f) => (f['setting.csv'] = strToU8('key,value\r\nweightUnit,lb\r\nbackupFolder,theirs\r\nbackupAt,x\r\n'))));
+  const imp = readImport(target, rezip(chunks, (f) => (f['setting.csv'] = strToU8('key,value\r\nweightUnit,lb\r\nbackupFolder,theirs\r\nbackupAt,x\r\nhealth,on\r\n'))));
   assert.deepEqual(previewImport(target, imp).errors, []);
   applyImport(target, imp, 'replace');
-  assert.deepEqual(target.all("SELECT key, value FROM setting WHERE key LIKE 'backup%' OR key = 'weightUnit' ORDER BY key").map((r) => ({ ...r })), [{ key: 'backupFolder', value: 'mine' }, { key: 'weightUnit', value: 'lb' }]);
+  assert.deepEqual(target.all("SELECT key, value FROM setting WHERE key LIKE 'backup%' OR key LIKE 'health%' OR key = 'weightUnit' ORDER BY key").map((r) => ({ ...r })), [{ key: 'backupFolder', value: 'mine' }, { key: 'weightUnit', value: 'lb' }]);
 });
 
 test('the blank CSV template imports as new finished workouts with the exercise mapping', () => {

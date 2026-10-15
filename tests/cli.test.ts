@@ -6,8 +6,9 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 const file = join(mkdtempSync(join(tmpdir(), 'nicereps-')), 'cli.sqlite');
-const cli = (...args: string[]) =>
-  execFileSync(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', '--disable-warning=ExperimentalWarning', 'cli/nicereps.ts', file, ...args], { encoding: 'utf8' }).trim();
+const run = (db: string, ...args: string[]) =>
+  execFileSync(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', '--disable-warning=ExperimentalWarning', 'cli/nicereps.ts', db, ...args], { encoding: 'utf8' }).trim();
+const cli = (...args: string[]) => run(file, ...args);
 
 test('CLI operations persist across processes', () => {
   cli('seed');
@@ -120,4 +121,17 @@ test('CLI prs shows a PR gain since the first workout in its trend, and an equal
   const prs = cli('prs');
   assert.match(prs, /Tie Lift +weight 42\.5 kg × 2 +\+2\.5 kg since 2026-08-01\n/);
   assert.match(prs, /Tie Lift +e1RM 45\.3 kg +no change since 2026-08-01(\n|$)/);
+});
+
+test('CLI health lists pending writes and removals until marked', () => {
+  const own = join(mkdtempSync(join(tmpdir(), 'nicereps-')), 'health.sqlite');
+  const cli = (...args: string[]) => run(own, ...args);
+  const workout = cli('start', '--at', '2026-10-10T07:00:00+10:00', '--tz', 'Australia/Brisbane');
+  cli('finish', workout);
+  assert.match(cli('health'), new RegExp(`^write  workout  ${workout}  Workout  2026-10-09T21:00:00\\.000Z  `, 'm'));
+  cli('health', '--mark');
+  assert.equal(cli('health'), '');
+  cli('delete', workout);
+  assert.equal(cli('health', '--mark'), `remove  workout  ${workout}`);
+  assert.equal(cli('health'), '');
 });
