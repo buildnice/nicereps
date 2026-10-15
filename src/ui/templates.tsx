@@ -107,6 +107,7 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
   const c = useColors();
   const { units } = usePrototype();
   const [plan, setPlan] = useState(() => ops.getTemplate(db, id));
+  const [visit, setVisit] = useState(0);
   const [name, setName] = useState(plan.name);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -184,7 +185,7 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
           <View key={i} style={[styles.card, { backgroundColor: c.raised }, e.superset && { borderLeftWidth: 3, borderLeftColor: c.faint }]}>
             <Txt variant="heading">{e.name}</Txt>
             <Txt variant="meta" tone="muted">{e.mode === 'reps' ? 'Weight × target reps' : modeNames[e.mode]}</Txt>
-            <ExerciseNote key={e.exerciseId} exerciseId={e.exerciseId} name={e.name} note={e.exerciseNote} onFocus={() => setEdit(null)} />
+            <ExerciseNote key={`${e.exerciseId}:${visit}`} exerciseId={e.exerciseId} name={e.name} note={e.exerciseNote} onFocus={() => setEdit(null)} />
             {e.sets.map((s, j) => {
               const label = setLabel(e.sets, j);
               const expanded = s.options ?? (s.targetRpe != null || s.rest != null);
@@ -374,7 +375,13 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
   useLayoutEffect(() => {
     host(sheet);
   });
-  useFocusEffect(useCallback(() => () => setEdit(null), []));
+  useFocusEffect(
+    useCallback(() => {
+      setPlan(ops.getTemplate(db, id));
+      setVisit((v) => v + 1);
+      return () => setEdit(null);
+    }, [id]),
+  );
   useEffect(() => {
     if (!editing) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {

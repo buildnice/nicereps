@@ -280,7 +280,7 @@ test("an exercise's own note carries into every workout and template, apart from
   const shown = cli('show', fresh);
   assert.match(shown, /Back Squat  reps  \[[^\]]*\]\n    note: seat 4, pin 7\n/);
   assert.doesNotMatch(shown, /knee wraps/);
-  assert.match(cli('history', 'Back Squat'), /"knee wraps today"\n    note: seat 4, pin 7/);
+  assert.match(cli('history', 'Back Squat'), /"knee wraps today"\n(?!    note:)/);
   assert.equal(cli('exercise-note', 'Back Squat'), 'Back Squat note: none');
   assert.doesNotMatch(cli('show', fresh), /note:/);
 });

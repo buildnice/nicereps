@@ -234,12 +234,15 @@ test("exercise notes travel in exercise.csv; an older export without the column 
   const id = (name: string) => db.all('SELECT id FROM exercise WHERE name = ?', [name])[0].id as string;
   setExerciseNote(db, id('Back Squat'), 'seat 4, "pin" 7');
   setExerciseNote(db, id('Tyre Flip Custom'), '=big tyre');
+  const catalog = db.all('SELECT name FROM exercise WHERE source IS NOT NULL LIMIT 1')[0].name as string;
+  setExerciseNote(db, id(catalog), 'cable at 3');
   const chunks = await archive(db);
   const [header] = parseCsv(strFromU8(unzipSync(Buffer.concat(chunks))['exercise.csv']));
   assert.ok(header.includes('note'));
   const fresh = openDb(':memory:');
   applyImport(fresh, readImport(fresh, chunks), 'update');
-  assert.deepEqual([note(fresh, 'Back Squat'), note(fresh, 'Tyre Flip Custom')], ['seat 4, "pin" 7', '=big tyre']);
+  assert.notEqual(fresh.all('SELECT id FROM exercise WHERE name = ?', [catalog])[0].id, id(catalog));
+  assert.deepEqual([note(fresh, 'Back Squat'), note(fresh, 'Tyre Flip Custom'), note(fresh, catalog)], ['seat 4, "pin" 7', '=big tyre', 'cable at 3']);
   const old = rezip(chunks, (f) => {
     const [columns, ...rows] = parseCsv(strFromU8(f['exercise.csv'])) as string[][];
     f['exercise.csv'] = strToU8(toCsv(columns.filter((c) => c !== 'note'), rows.map((r) => Object.fromEntries(columns.map((c, i) => [c, r[i]])))));

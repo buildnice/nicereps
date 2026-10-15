@@ -234,7 +234,7 @@ const showWorkout = (w: ReturnType<typeof ops.getWorkout>, suggest?: (exercise: 
   for (const e of w.exercises) {
     const muscles = e.mapping.map((m) => (m.role === 'primary' ? m.muscle : `${m.muscle}/2`)).join(', ');
     console.log(`  ${e.id}  ${e.name}  ${e.mode}  [${muscles}]${e.superset ? `  superset ${e.superset.slice(0, 6)}` : ''}${e.note ? `  "${e.note}"` : ''}`);
-    if (e.exerciseNote) console.log(`    note: ${e.exerciseNote}`);
+    if (e.exerciseNote && !w.finishedAt) console.log(`    note: ${e.exerciseNote}`);
     const up = suggest?.(e.name) ?? [];
     e.sets.forEach((s, i) => console.log(`    ${s.id}  ${s.type.padEnd(7)} ${measure(e.mode, s)}  ${s.completed ? 'done' : '-'}${prs?.has(s.id) ? '  PR' : ''}${extras(s)}${up[i] ? `  try ${up[i].weight} ${up[i].unit}` : ''}`));
   }

@@ -1,7 +1,7 @@
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, type TextProps, BackHandler, Platform, Image, Keyboard, KeyboardAvoidingView, PanResponder, ScrollView, StyleSheet, TextInput, useWindowDimensions, Vibration, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeOut, interpolateColor, Keyframe, LayoutAnimationConfig, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { ArrowDownIcon } from 'phosphor-react-native/src/icons/ArrowDown';
@@ -149,6 +149,12 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     op();
     setWorkout(ops.getWorkout(db, id));
   };
+  const [visit, setVisit] = useState(0);
+  const reload = useCallback(() => {
+    setWorkout(ops.getWorkout(db, id));
+    setVisit((v) => v + 1);
+  }, [id]);
+  useFocusEffect(reload);
   const { units } = usePrototype();
   const exercises = supersetBlocks(workout.exercises).flat().map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...inUnit(s, units), pace: s.distance && s.duration ? pace(s.duration, s.distance, s.distanceUnit, units.distance) : null })) }));
   const [open, setOpen] = useState<string | null>(exercises[0]?.id ?? null);
@@ -256,6 +262,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const [kgOn, setKgOn] = useState(() => measures.bodyWeight(db, workout.date));
   const [seen, setSeen] = useState({ hidden, date: workout.date });
   if (seen.hidden !== hidden || seen.date !== workout.date) {
+    if (seen.hidden !== hidden) reload();
     setSeen({ hidden, date: workout.date });
     setKgOn(measures.bodyWeight(db, workout.date));
   }
@@ -459,7 +466,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
               </Tap>
             </View>
             {menu !== exercise.id && (!!exercise.exerciseNote || !!exercise.note) && (
-              <Tap accessibilityLabel={`${exercise.name} note, ${[exercise.exerciseNote, exercise.note].filter(Boolean).join(', ')}, options`} onPress={() => setMenu(exercise.id)} style={{ marginBottom: space.s }}>
+              <Tap accessibilityLabel={`${exercise.name} notes, ${[exercise.exerciseNote && `every workout: ${exercise.exerciseNote}`, exercise.note && `this workout: ${exercise.note}`].filter(Boolean).join(', ')}, options`} onPress={() => setMenu(exercise.id)} style={{ marginBottom: space.s }}>
                 {[exercise.exerciseNote, exercise.note].map((note, i) => !!note && <Txt key={i} variant="meta" tone="muted" style={{ fontWeight: '500' }}>{note}</Txt>)}
               </Tap>
             )}
@@ -482,7 +489,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                     </Txt>
                   </Tap>
                 )}
-                <ExerciseNote exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} onFocus={() => setEdit(null)} save={run} />
+                <ExerciseNote key={visit} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} onFocus={() => setEdit(null)} save={run} />
                 <TextInput
                   defaultValue={exercise.note ?? ''}
                   onChangeText={(t) => run(() => ops.noteExercise(db, exercise.id, t))}
