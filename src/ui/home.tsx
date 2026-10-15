@@ -245,9 +245,11 @@ const Dot = memo(function Dot({ date, sets, name, done, now, selected, onSelect 
           { backgroundColor: plan || future ? 'transparent' : c.heat[heatLevel(sets)] },
           plan && { borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.muted },
           future && { borderWidth: 1.5, borderColor: c.faint },
-          (selected || date === now) && { outlineWidth: 2, outlineColor: date === now ? c.text : c.muted, outlineOffset: 2, outlineStyle: 'solid' },
+          selected && { outlineWidth: 2, outlineColor: c.muted, outlineOffset: 1, outlineStyle: 'solid' },
         ]}
-      />
+      >
+        {date === now && <View style={[styles.today, { backgroundColor: c.text, borderColor: c.surface }]} />}
+      </View>
     </Tap>
   );
 });
@@ -476,7 +478,8 @@ const styles = StyleSheet.create({
   plus: { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   heat: { flexDirection: 'row', gap: 4 },
   heatRows: { gap: 8 },
-  dot: { width: '100%', aspectRatio: 1, borderRadius: radius.pill },
+  dot: { width: '100%', aspectRatio: 1, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  today: { width: '58%', aspectRatio: 1, borderRadius: radius.pill, borderWidth: 2 },
   dayCard: { borderRadius: radius.m, padding: space.l, marginTop: space.l },
   planned: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: space.m, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: radius.s },
   legend: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: space.m },
