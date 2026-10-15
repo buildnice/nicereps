@@ -434,6 +434,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
             <Tap key={exercise.id} onPress={() => show(exercise.id)} style={[styles.card, styles.collapsed, { backgroundColor: c.surface }, exercise.superset && { borderLeftWidth: 3, borderLeftColor: c.faint }]}>
               <View style={{ flex: 1 }}>
                 <Txt variant="heading">{exercise.name}</Txt>
+                {!!exercise.exerciseNote && <Txt variant="meta" tone="muted" style={{ fontWeight: '500' }}>{exercise.exerciseNote}</Txt>}
                 <Txt variant="meta" tone="muted">{progress}{done > 0 && done === exercise.sets.length ? ' ✓' : ''}</Txt>
               </View>
               <Icon of={CaretRightIcon} tone="faint" />
@@ -457,9 +458,9 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                 <Icon of={DotsThreeVerticalIcon} />
               </Tap>
             </View>
-            {menu !== exercise.id && !!exercise.note && (
-              <Tap accessibilityLabel={`${exercise.name} note, ${exercise.note}, options`} onPress={() => setMenu(exercise.id)} style={{ marginBottom: space.s }}>
-                <Txt variant="meta" tone="muted" style={{ fontWeight: '500' }}>{exercise.note}</Txt>
+            {menu !== exercise.id && (!!exercise.exerciseNote || !!exercise.note) && (
+              <Tap accessibilityLabel={`${exercise.name} note, ${[exercise.exerciseNote, exercise.note].filter(Boolean).join(', ')}, options`} onPress={() => setMenu(exercise.id)} style={{ marginBottom: space.s }}>
+                {[exercise.exerciseNote, exercise.note].map((note, i) => !!note && <Txt key={i} variant="meta" tone="muted" style={{ fontWeight: '500' }}>{note}</Txt>)}
               </Tap>
             )}
             {menu === exercise.id && (
@@ -481,13 +482,14 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                     </Txt>
                   </Tap>
                 )}
+                <ExerciseNote exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} onFocus={() => setEdit(null)} save={run} />
                 <TextInput
                   defaultValue={exercise.note ?? ''}
                   onChangeText={(t) => run(() => ops.noteExercise(db, exercise.id, t))}
                   onFocus={() => setEdit(null)}
-                  placeholder="Exercise note"
+                  placeholder="Note for this workout"
                   placeholderTextColor={c.faint}
-                  accessibilityLabel={`${exercise.name} note`}
+                  accessibilityLabel={`${exercise.name} note for this workout`}
                   multiline
                   style={[styles.exerciseNote, { color: c.text }]}
                 />
@@ -737,6 +739,22 @@ export function ExercisePicker({ exclude, onPick, onFocus, create = true }: { ex
         </>
       )}
     </Animated.View>
+  );
+}
+
+export function ExerciseNote({ exerciseId, name, note, onFocus, save = (op) => op() }: { exerciseId: string; name: string; note: string | null; onFocus?: () => void; save?: (op: () => unknown) => void }) {
+  const c = useColors();
+  return (
+    <TextInput
+      defaultValue={note ?? ''}
+      onChangeText={(t) => save(() => ops.setExerciseNote(db, exerciseId, t))}
+      onFocus={onFocus}
+      placeholder="Note for every workout"
+      placeholderTextColor={c.faint}
+      accessibilityLabel={`${name} note for every workout`}
+      multiline
+      style={[styles.exerciseNote, { color: c.text }]}
+    />
   );
 }
 

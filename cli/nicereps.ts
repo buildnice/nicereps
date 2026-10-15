@@ -34,7 +34,8 @@ const usage = `Usage: nicereps <db-file> <command> [args]
   superset <workout-exercise> <workout-exercise>
   unlink <workout-exercise>
   note <workout> <text>
-  note-exercise <workout-exercise> <text>
+  note-exercise <workout-exercise> <text>  this workout's note on the exercise
+  exercise-note <exercise> [text]       the exercise's own note, shown in every workout and template; omit text to clear
   finish <workout>
   discard <workout>                     delete an unfinished workout
   delete <workout>                      delete any workout
@@ -129,6 +130,7 @@ const required: Record<string, number> = {
   unlink: 1,
   note: 2,
   'note-exercise': 2,
+  'exercise-note': 1,
   finish: 1,
   discard: 1,
   delete: 1,
@@ -232,6 +234,7 @@ const showWorkout = (w: ReturnType<typeof ops.getWorkout>, suggest?: (exercise: 
   for (const e of w.exercises) {
     const muscles = e.mapping.map((m) => (m.role === 'primary' ? m.muscle : `${m.muscle}/2`)).join(', ');
     console.log(`  ${e.id}  ${e.name}  ${e.mode}  [${muscles}]${e.superset ? `  superset ${e.superset.slice(0, 6)}` : ''}${e.note ? `  "${e.note}"` : ''}`);
+    if (e.exerciseNote) console.log(`    note: ${e.exerciseNote}`);
     const up = suggest?.(e.name) ?? [];
     e.sets.forEach((s, i) => console.log(`    ${s.id}  ${s.type.padEnd(7)} ${measure(e.mode, s)}  ${s.completed ? 'done' : '-'}${prs?.has(s.id) ? '  PR' : ''}${extras(s)}${up[i] ? `  try ${up[i].weight} ${up[i].unit}` : ''}`));
   }
@@ -241,6 +244,7 @@ const showTemplate = (t: ReturnType<typeof ops.getTemplate>) => {
   console.log(`${t.id}  ${t.name}`);
   t.exercises.forEach((e, i) => {
     console.log(`  ${i + 1}  ${e.name}  ${e.mode}${e.superset ? `  superset ${e.superset.slice(0, 6)}` : ''}`);
+    if (e.exerciseNote) console.log(`     note: ${e.exerciseNote}`);
     e.sets.forEach((s, j) => console.log(`     ${j + 1}  ${s.type.padEnd(7)} ${measure(e.mode, { ...s, completed: false })}${extras({ ...s, completed: false })}`));
   });
 };
@@ -358,6 +362,9 @@ try {
       break;
     case 'note-exercise':
       ops.noteExercise(db, args[0], args.slice(1).join(' '));
+      break;
+    case 'exercise-note':
+      console.log(`${args[0]} note: ${ops.setExerciseNote(db, exerciseId(db, args[0]), args.slice(1).join(' ')) ?? 'none'}`);
       break;
     case 'discard':
       ops.discardWorkout(db, args[0]);
@@ -490,7 +497,7 @@ try {
     case 'template-add':
       editTemplate(db, args[0], (plan) => {
         const id = exerciseId(db, args[1]);
-        plan.exercises.push({ exerciseId: id, name: args[1], mode: 'reps', superset: null, sets: [{ type: 'normal', weight: 0, reps: 0, ...fields(db) }] });
+        plan.exercises.push({ exerciseId: id, name: args[1], mode: 'reps', exerciseNote: null, superset: null, sets: [{ type: 'normal', weight: 0, reps: 0, ...fields(db) }] });
       });
       break;
     case 'template-set':

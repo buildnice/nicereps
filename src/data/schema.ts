@@ -148,6 +148,7 @@ export const migrations: (string[] | ((db: Db) => void))[] = [
       exercise_id TEXT NOT NULL REFERENCES exercise(id) ON DELETE CASCADE,
       PRIMARY KEY (app, name))`,
   ],
+  ['ALTER TABLE exercise ADD COLUMN note TEXT'],
 ];
 
 export const migrate = (db: Db) => {

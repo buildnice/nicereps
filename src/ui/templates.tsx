@@ -18,7 +18,7 @@ import type { Draft } from './draft';
 import { Keypad } from './keypad';
 import { BottomSheet, Reveal, SheetHost } from './sheet';
 import { describeSet, Icon, inUnit, radius, space, Tap, touch, Txt, type, useColors, usePrototype } from './theme';
-import { decimals, entered, ExercisePicker, fieldText, modeFields, modeNames, nextType, setLabel, timeFields, typed, type Field } from './workout';
+import { decimals, entered, ExerciseNote, ExercisePicker, fieldText, modeFields, modeNames, nextType, setLabel, timeFields, typed, type Field } from './workout';
 
 type Plan = ReturnType<typeof ops.getTemplate>;
 type Start = (from: { templateId: string }) => void;
@@ -184,6 +184,7 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
           <View key={i} style={[styles.card, { backgroundColor: c.raised }, e.superset && { borderLeftWidth: 3, borderLeftColor: c.faint }]}>
             <Txt variant="heading">{e.name}</Txt>
             <Txt variant="meta" tone="muted">{e.mode === 'reps' ? 'Weight × target reps' : modeNames[e.mode]}</Txt>
+            <ExerciseNote key={e.exerciseId} exerciseId={e.exerciseId} name={e.name} note={e.exerciseNote} onFocus={() => setEdit(null)} />
             {e.sets.map((s, j) => {
               const label = setLabel(e.sets, j);
               const expanded = s.options ?? (s.targetRpe != null || s.rest != null);
@@ -335,7 +336,7 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
           exclude={plan.exercises.map((e) => e.exerciseId)}
           onFocus={() => setEdit(null)}
           onPick={(exerciseId) => {
-            change((x) => x.push({ exerciseId, name: '', mode: 'reps', superset: null, sets: [{ type: 'normal', weight: 0, reps: 0, duration: null, distance: null, rounds: null, recovery: null, rest: null, targetRpe: null, options: null }] }));
+            change((x) => x.push({ exerciseId, name: '', mode: 'reps', exerciseNote: null, superset: null, sets: [{ type: 'normal', weight: 0, reps: 0, duration: null, distance: null, rounds: null, recovery: null, rest: null, targetRpe: null, options: null }] }));
             setAdding(false);
           }}
         />

@@ -149,13 +149,14 @@ export const insertTemplateSet = (db: Db, id: string, templateExerciseId: string
 export const templatePlan = (db: Db, templateId: string) => {
   const name = one(db, 'SELECT name FROM template WHERE id = ?', [templateId]).name as string;
   const exercises = db
-    .all('SELECT te.id, te.exercise_id, te.superset, e.name, e.mode FROM template_exercise te JOIN exercise e ON e.id = te.exercise_id WHERE te.template_id = ? ORDER BY te.position', [
+    .all('SELECT te.id, te.exercise_id, te.superset, e.name, e.mode, e.note FROM template_exercise te JOIN exercise e ON e.id = te.exercise_id WHERE te.template_id = ? ORDER BY te.position', [
       templateId,
     ])
     .map((e) => ({
       exerciseId: e.exercise_id as string,
       name: e.name as string,
       mode: e.mode as Mode,
+      exerciseNote: e.note as string | null,
       superset: e.superset as string | null,
       sets: db.all(`SELECT ${templateSetColumns} FROM template_set WHERE template_exercise_id = ? ORDER BY position`, [e.id]).map((s): Omit<SetFields, 'completed' | 'rpe' | 'comment'> => ({
         type: s.type as SetType,
@@ -285,7 +286,7 @@ export const setBar = (db: Db, exerciseId: string, bar: number | null, unit: Wei
   db.run('UPDATE exercise SET bar = ?, bar_unit = ? WHERE id = ?', [bar, bar == null ? null : unit, exerciseId]);
 };
 
-export const setNote = (db: Db, table: 'workout' | 'workout_exercise', id: string, note: string | null) => {
+export const setNote = (db: Db, table: 'workout' | 'workout_exercise' | 'exercise', id: string, note: string | null) => {
   one(db, `SELECT id FROM ${table} WHERE id = ?`, [id]);
   db.run(`UPDATE ${table} SET note = ? WHERE id = ?`, [note, id]);
 };
@@ -346,7 +347,7 @@ export const workouts = (db: Db, where: string, params: Value[], limit = -1, exe
   const rows = db.all(`SELECT id, name, date, time_zone, started_at, finished_at, note FROM workout WHERE ${where} ORDER BY date DESC, started_at DESC LIMIT ?`, [...params, limit]);
   const ids = JSON.stringify(rows.map((w) => w.id));
   const exerciseRows = db.all(
-    'SELECT we.id, we.workout_id, we.exercise_id, e.name, e.mode, e.rest, e.source, e.bar, e.bar_unit, we.superset, we.note FROM workout_exercise we JOIN exercise e ON e.id = we.exercise_id WHERE we.workout_id IN (SELECT value FROM json_each(?)) AND (? IS NULL OR e.name = ?) ORDER BY we.position',
+    'SELECT we.id, we.workout_id, we.exercise_id, e.name, e.mode, e.rest, e.source, e.bar, e.bar_unit, e.note AS exercise_note, we.superset, we.note FROM workout_exercise we JOIN exercise e ON e.id = we.exercise_id WHERE we.workout_id IN (SELECT value FROM json_each(?)) AND (? IS NULL OR e.name = ?) ORDER BY we.position',
     [ids, exercise, exercise],
   );
   const exerciseIds = JSON.stringify(exerciseRows.map((e) => e.id));
@@ -370,6 +371,7 @@ export const workouts = (db: Db, where: string, params: Value[], limit = -1, exe
       source: e.source as string | null,
       bar: e.bar as number | null,
       barUnit: e.bar_unit as WeightUnit | null,
+      exerciseNote: e.exercise_note as string | null,
       superset: e.superset as string | null,
       note: e.note as string | null,
       mapping: (mappings.get(e.id) ?? []).map((m) => ({ muscle: m.muscle as string, role: m.role as Role })),
@@ -406,14 +408,14 @@ export const setRows = (db: Db, from: string, to: string) =>
 export const lifts = (db: Db) =>
   db
     .all(
-      `SELECT e.id, e.name, e.mode FROM workout w
+      `SELECT e.id, e.name, e.mode, e.note FROM workout w
        JOIN workout_exercise we ON we.workout_id = w.id
        JOIN exercise e ON e.id = we.exercise_id
        JOIN workout_set s ON s.workout_exercise_id = we.id
        WHERE w.finished_at IS NOT NULL AND s.completed = 1 AND s.type != 'warm-up' AND e.mode IN ('reps', 'duration')
        GROUP BY e.name ORDER BY MAX(w.date) DESC, e.name`,
     )
-    .map((r) => ({ id: r.id as string, name: r.name as string, mode: r.mode as Mode }));
+    .map((r) => ({ id: r.id as string, name: r.name as string, mode: r.mode as Mode, note: r.note as string | null }));
 
 export const starredRecords = (db: Db) => db.all('SELECT exercise_id, kind FROM starred_record').map((r) => `${r.exercise_id} ${r.kind}`);
 
