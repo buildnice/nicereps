@@ -3,7 +3,7 @@ import { createId } from '@paralleldrive/cuid2';
 import type { Db, Row, Value } from '../data/db.ts';
 import { presets, type Kind } from './measurements.ts';
 import type { Import, Parsed } from './portability.ts';
-import { isDate, localDate } from './rules.ts';
+import { isDate, localDate, zoned } from './rules.ts';
 import { weightUnit } from './workouts.ts';
 
 export type Found = { name: string; mode: 'reps' | 'duration' | 'distance' };
@@ -80,16 +80,6 @@ export const resolveExercises = (db: Db, imp: Import, map: Record<string, string
         db.run('INSERT INTO app_exercise (app, name, exercise_id) VALUES (?, ?, ?) ON CONFLICT DO UPDATE SET exercise_id = excluded.exercise_id', [app, name, id]);
     },
   };
-};
-
-const zoned = (wall: string, timeZone: string) => {
-  const offset = (t: number) => {
-    const format = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const p = Object.fromEntries(format.formatToParts(t).map((x) => [x.type, x.value]));
-    return Date.parse(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`) - t;
-  };
-  const guess = Date.parse(`${wall}Z`);
-  return new Date(guess - offset(guess - offset(guess))).toISOString();
 };
 
 const stamp = /^\d{4}-\d{2}-\d{2} ([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/;

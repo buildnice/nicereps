@@ -472,3 +472,5 @@ export const writeHealthRecord = (db: Db, id: string, kind: string, hash: string
   db.run('INSERT INTO health_record (id, kind, hash) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET kind = excluded.kind, hash = excluded.hash', [id, kind, hash]);
 
 export const deleteHealthRecord = (db: Db, id: string) => db.run('DELETE FROM health_record WHERE id = ?', [id]);
+
+export const forgetHealthRecords = (db: Db) => db.run('DELETE FROM health_record');

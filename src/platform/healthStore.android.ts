@@ -32,7 +32,9 @@ const kinds = (granted: { accessType: string; recordType: string }[]) =>
 
 export const healthGranted = async () => kinds(await getGrantedPermissions());
 
-export const requestHealth = async () => kinds(await requestPermission(permissions));
+export const requestHealth = async () => {
+  await requestPermission(permissions);
+};
 
 const record = (r: HealthRecord, version: number): HealthConnectRecord => {
   const metadata = { clientRecordId: r.id, clientRecordVersion: version, recordingMethod: RecordingMethod.RECORDING_METHOD_MANUAL_ENTRY };

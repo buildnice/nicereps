@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { openDb } from '../cli/db.ts';
-import { healthChanges, markRemoved, markWritten } from '../src/domain/health.ts';
+import { forgetHealth, healthChanges, markRemoved, markWritten } from '../src/domain/health.ts';
 import { deleteMeasurement, logBodyWeight } from '../src/domain/measurements.ts';
 import { eraseAll } from '../src/domain/portability.ts';
 import * as ops from '../src/domain/workouts.ts';
@@ -75,4 +75,26 @@ test('erasing forgets what was written, so a new log starts clean', () => {
   sync(db);
   eraseAll(db);
   assert.deepEqual(healthChanges(db), { write: [], remove: [] });
+});
+
+test('a workout moved across a daylight saving change keeps its wall-clock times', () => {
+  const db = openDb(':memory:');
+  const zone = 'America/New_York';
+  const w = ops.startWorkout(db, { now: new Date('2025-11-03T07:00:00-05:00'), timeZone: zone });
+  ops.finishWorkout(db, w, new Date('2025-11-03T08:00:00.500-05:00'));
+  ops.moveWorkout(db, w, '2025-10-31');
+  assert.deepEqual(healthChanges(db).write[0], { kind: 'workout', id: w, title: 'Workout', start: '2025-10-31T11:00:00.000Z', end: '2025-10-31T12:00:00.500Z' });
+});
+
+test('a workout with an unreadable time zone is written unmoved', () => {
+  const { db, w } = setup();
+  db.run("UPDATE workout SET time_zone = 'Bogus/Zone' WHERE id = ?", [w]);
+  assert.equal((healthChanges(db).write[0] as { start: string }).start, '2026-10-07T21:00:00.000Z');
+});
+
+test('turning sync off forgets what was written, so turning it on rewrites everything', () => {
+  const { db } = setup();
+  const first = sync(db);
+  forgetHealth(db);
+  assert.deepEqual(healthChanges(db), first);
 });

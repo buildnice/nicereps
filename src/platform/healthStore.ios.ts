@@ -25,7 +25,6 @@ export const healthGranted = async () => kinds();
 
 export const requestHealth = async () => {
   await requestAuthorization({ toShare: Object.values(types) });
-  return kinds();
 };
 
 // HealthKit replaces a sample whose sync identifier matches and whose version is higher.

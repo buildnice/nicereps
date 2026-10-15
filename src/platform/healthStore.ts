@@ -6,7 +6,7 @@ export const healthMissing = async (): Promise<string | null> => 'Health data is
 
 export const healthGranted = async (): Promise<HealthKind[]> => [];
 
-export const requestHealth = async (): Promise<HealthKind[]> => [];
+export const requestHealth = async () => {};
 
 export const writeHealth = async (_records: HealthRecord[], _version: number) => {};
 

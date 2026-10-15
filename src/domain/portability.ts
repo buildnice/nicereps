@@ -3,6 +3,7 @@ import { strFromU8, strToU8, Unzip, UnzipInflate, Zip, ZipDeflate, ZipPassThroug
 
 import { transaction, type Db, type Row, type Value } from '../data/db.ts';
 import { migrations, seedCatalog } from '../data/schema.ts';
+import { forgetHealth } from './health.ts';
 import { photoName } from './measurements.ts';
 import { isDate, localDate, optionalFields } from './rules.ts';
 import { badSetting } from './workouts.ts';
@@ -79,7 +80,7 @@ export const eraseAll = (db: Db) =>
     tables(db)
       .reverse()
       .forEach((table) => db.run(`DELETE FROM ${table}`));
-    db.run('DELETE FROM health_record');
+    forgetHealth(db);
     seedCatalog(db);
     return files;
   });

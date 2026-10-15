@@ -182,11 +182,18 @@ export const isDate = (date: string) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(d.getTime()) && d.toISOString().startsWith(date);
 };
 
-export const localDate = (now: Date, timeZone: string) => {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now).map((p) => [p.type, p.value]),
-  );
-  return `${parts.year}-${parts.month}-${parts.day}`;
+export const wallTime = (t: number, timeZone: string) => {
+  const format = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const p = Object.fromEntries(format.formatToParts(t).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
+};
+
+export const localDate = (now: Date, timeZone: string) => wallTime(now.getTime(), timeZone).slice(0, 10);
+
+export const zoned = (wall: string, timeZone: string) => {
+  const offset = (t: number) => Date.parse(`${wallTime(t, timeZone)}Z`) - t;
+  const guess = Date.parse(`${wall}Z`);
+  return new Date(guess - offset(guess - offset(guess))).toISOString();
 };
 
 export const addDays = (date: string, days: number) => {

@@ -1,4 +1,4 @@
-import { healthChanges, markRemoved, markWritten } from '@/domain/health';
+import { forgetHealth, healthChanges, markRemoved, markWritten, type HealthRecord } from '@/domain/health';
 
 import { db, readSetting, writeSetting } from './db';
 import { healthGranted, healthMissing, removeHealth, requestHealth, writeHealth } from './healthStore';
@@ -6,27 +6,41 @@ import { healthGranted, healthMissing, removeHealth, requestHealth, writeHealth 
 export { healthMissing, healthName, openHealth } from './healthStore';
 
 const batch = 100;
+const on = () => readSetting('health') === 'on';
+
+// A rejected batch is retried one record at a time so one bad record cannot hold back the rest.
+const write = async (records: HealthRecord[]) => {
+  try {
+    await writeHealth(records, Date.now());
+    if (on()) markWritten(db, records);
+  } catch (e) {
+    if (records.length === 1) throw e;
+    let error: unknown;
+    for (const r of records) await write([r]).catch((e) => (error ??= e));
+    if (error) throw error;
+  }
+};
 
 const sync = async () => {
-  if (readSetting('health') !== 'on') return;
+  if (!on()) return;
+  let error = '';
   try {
     const missing = await healthMissing();
     if (missing) throw new Error(missing);
     const kinds = await healthGranted();
     if (!kinds.length) throw new Error('nicereps has no permission to write.');
-    const { write, remove } = healthChanges(db, kinds);
-    for (let i = 0; i < write.length; i += batch) {
-      const chunk = write.slice(i, i + batch);
-      await writeHealth(chunk, Date.now());
-      markWritten(db, chunk);
+    const changes = healthChanges(db, kinds);
+    for (let i = 0; i < changes.write.length && on(); i += batch) await write(changes.write.slice(i, i + batch)).catch((e) => (error ||= (e as Error).message));
+    if (on()) {
+      await removeHealth(changes.remove);
+      if (on()) markRemoved(db, changes.remove);
     }
-    await removeHealth(remove);
-    markRemoved(db, remove);
-    writeSetting('healthAt', new Date().toISOString());
-    writeSetting('healthError', kinds.length < 2 ? `nicereps has no permission to write ${kinds.includes('workout') ? 'weight' : 'workouts'}.` : '');
+    if (on()) writeSetting('healthAt', new Date().toISOString());
+    error ||= kinds.length < 2 ? `nicereps has no permission to write ${kinds.includes('workout') ? 'weight' : 'workouts'}.` : '';
   } catch (e) {
-    writeSetting('healthError', (e as Error).message);
+    error = (e as Error).message;
   }
+  if (on()) writeSetting('healthError', error);
 };
 
 let queue = Promise.resolve();
@@ -39,6 +53,8 @@ export const startHealth = async () => {
   await syncHealth();
 };
 
+// Forgetting what was written makes turning sync back on rewrite every record; a newer version replaces any still in the store.
 export const stopHealth = () => {
   for (const key of ['health', 'healthAt', 'healthError']) writeSetting(key, '');
+  forgetHealth(db);
 };
