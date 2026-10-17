@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { Linking } from 'react-native';
 import {
   deleteRecordsByUuids,
@@ -7,13 +8,14 @@ import {
   initialize,
   insertRecords,
   openHealthConnectSettings,
+  readRecords,
   RecordingMethod,
   requestPermission,
   SdkAvailabilityStatus,
   type HealthConnectRecord,
 } from 'react-native-health-connect';
 
-import type { HealthKind, HealthRecord, HealthRef } from '@/domain/health';
+import type { HealthKind, HealthRecord, HealthRef, HealthWeight } from '@/domain/health';
 
 export const healthName = 'Health Connect';
 
@@ -32,8 +34,23 @@ const kinds = (granted: { accessType: string; recordType: string }[]) =>
 
 export const healthGranted = async () => kinds(await getGrantedPermissions());
 
-export const requestHealth = async () => {
-  await requestPermission(permissions);
+export const readGranted = async () => (await getGrantedPermissions()).some((p) => p.accessType === 'read' && p.recordType === 'Weight');
+
+export const requestHealth = async ({ write, read }: { write: boolean; read: boolean }) => {
+  await requestPermission([...(write ? permissions : []), ...(read ? [{ accessType: 'read' as const, recordType: 'Weight' as const }] : [])]);
+};
+
+// Health Connect lets an app read only from 30 days before it was first granted read access.
+export const readHealthWeights = async () => {
+  const weights: HealthWeight[] = [];
+  let pageToken: string | undefined;
+  do {
+    const page = await readRecords('Weight', { timeRangeFilter: { operator: 'after', startTime: new Date(0).toISOString() }, pageSize: 1000, pageToken });
+    for (const r of page.records)
+      if (r.metadata?.id && r.metadata.dataOrigin !== Constants.expoConfig?.android?.package) weights.push({ id: r.metadata.id, at: r.time, kg: r.weight.inKilograms });
+    pageToken = page.pageToken || undefined;
+  } while (pageToken);
+  return weights;
 };
 
 const record = (r: HealthRecord, version: number): HealthConnectRecord => {

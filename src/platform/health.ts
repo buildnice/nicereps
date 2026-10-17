@@ -1,12 +1,13 @@
-import { forgetHealth, healthChanges, markRemoved, markWritten, type HealthRecord } from '@/domain/health';
+import { forgetHealth, healthChanges, markRemoved, markWritten, readWeights, type HealthRecord } from '@/domain/health';
 
 import { db, readSetting, writeSetting } from './db';
-import { healthGranted, healthMissing, removeHealth, requestHealth, writeHealth } from './healthStore';
+import { healthGranted, healthMissing, readGranted, readHealthWeights, removeHealth, requestHealth, writeHealth } from './healthStore';
 
 export { healthMissing, healthName, openHealth } from './healthStore';
 
 const batch = 100;
 const on = () => readSetting('health') === 'on';
+const reading = () => readSetting('healthRead') === 'on';
 
 // A rejected batch is retried one record at a time so one bad record cannot hold back the rest.
 const write = async (records: HealthRecord[]) => {
@@ -22,6 +23,7 @@ const write = async (records: HealthRecord[]) => {
 };
 
 const sync = async () => {
+  if (reading()) await read();
   if (!on()) return;
   let error = '';
   try {
@@ -43,13 +45,30 @@ const sync = async () => {
   if (on()) writeSetting('healthError', error);
 };
 
+const read = async () => {
+  let error = '';
+  try {
+    const missing = await healthMissing();
+    if (missing) throw new Error(missing);
+    if (!(await readGranted())) throw new Error('nicereps has no permission to read weight.');
+    const weights = await readHealthWeights();
+    if (reading()) {
+      readWeights(db, weights, Intl.DateTimeFormat().resolvedOptions().timeZone);
+      writeSetting('healthReadAt', new Date().toISOString());
+    }
+  } catch (e) {
+    error = (e as Error).message;
+  }
+  if (reading()) writeSetting('healthReadError', error);
+};
+
 let queue = Promise.resolve();
 export const syncHealth = () => (queue = queue.then(sync).catch(() => {}));
 
 export const startHealth = async () => {
   const missing = await healthMissing();
   writeSetting('health', 'on');
-  if (!missing) await requestHealth();
+  if (!missing) await requestHealth({ write: true, read: false });
   await syncHealth();
 };
 
@@ -57,4 +76,16 @@ export const startHealth = async () => {
 export const stopHealth = () => {
   for (const key of ['health', 'healthAt', 'healthError']) writeSetting(key, '');
   forgetHealth(db);
+};
+
+export const startHealthRead = async () => {
+  const missing = await healthMissing();
+  writeSetting('healthRead', 'on');
+  if (!missing) await requestHealth({ write: false, read: true });
+  await syncHealth();
+};
+
+// What was read stays in nicereps, and samples already read are not read again.
+export const stopHealthRead = () => {
+  for (const key of ['healthRead', 'healthReadAt', 'healthReadError']) writeSetting(key, '');
 };

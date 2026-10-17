@@ -475,4 +475,4 @@ export const writeHealthRecord = (db: Db, id: string, kind: string, hash: string
 
 export const deleteHealthRecord = (db: Db, id: string) => db.run('DELETE FROM health_record WHERE id = ?', [id]);
 
-export const forgetHealthRecords = (db: Db) => db.run('DELETE FROM health_record');
+export const forgetHealthRecords = (db: Db, read: boolean) => db.run("DELETE FROM health_record WHERE ? OR kind != 'read'", [read ? 1 : 0]);

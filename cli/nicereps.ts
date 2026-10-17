@@ -97,6 +97,8 @@ const usage = `Usage: nicereps <db-file> <command> [args]
   blank-template                        print the blank CSV template
   health [--mark]                       records Health Connect or Apple Health still needs written or removed;
                                         --mark records them as done
+  health-read <samples.json> [--tz TZ]  add store body weights ([{"id", "at", "kg"}]) to dates with none;
+                                        each sample is read once and never written back
 FIELDS: --weight N (in the weightUnit setting) --reps N --target-reps N --type T --duration S --distance N (in the distanceUnit setting) --rounds N --recovery S
         --rest S --target-rpe N --rpe N --comment TEXT --options true|false --fields targetRpe,rpe,rest,comment,plates --done true|false
         ('' clears an optional field)`;
@@ -124,6 +126,7 @@ const required: Record<string, number> = {
   set: 1,
   plates: 1,
   bar: 1,
+  'health-read': 1,
   edit: 1,
   'remove-set': 1,
   'restore-set': 1,
@@ -660,6 +663,9 @@ try {
       }
       break;
     }
+    case 'health-read':
+      console.log(`added  ${health.readWeights(db, JSON.parse(readFileSync(args[0], 'utf8')), values.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone)}`);
+      break;
     default:
       console.error(usage);
       process.exit(2);

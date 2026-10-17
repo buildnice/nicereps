@@ -1,12 +1,15 @@
 import { transaction, type Db } from '../data/db.ts';
 import * as q from '../data/queries.ts';
-import { bodyWeights } from './measurements.ts';
-import { kg, wallTime, zoned } from './rules.ts';
+import { add, bodyWeights } from './measurements.ts';
+import { convert, kg, localDate, wallTime, zoned } from './rules.ts';
+import { weightUnit } from './workouts.ts';
 
 const healthKinds = ['workout', 'weight'] as const;
 export type HealthKind = (typeof healthKinds)[number];
 export type HealthRecord = { kind: 'workout'; id: string; title: string; start: string; end: string } | { kind: 'weight'; id: string; date: string; kg: number };
 export type HealthRef = { id: string; kind: HealthKind };
+// A body-weight sample another app put in the health store.
+export type HealthWeight = { id: string; at: string; kg: number };
 
 // A workout moved to another date keeps its wall-clock times on the new date; an unreadable time zone leaves it unmoved.
 const moved = (at: number, date: string, timeZone: string) => {
@@ -25,10 +28,16 @@ const workoutRecords = (db: Db): HealthRecord[] =>
     return end > start ? [{ kind: 'workout' as const, id: w.id as string, title: w.name as string, start: new Date(start).toISOString(), end: new Date(end).toISOString() }] : [];
   });
 
-const healthRecords = (db: Db): HealthRecord[] => [
-  ...workoutRecords(db),
-  ...bodyWeights(db).map((e) => ({ kind: 'weight' as const, id: e.id, date: e.date, kg: kg({ weight: e.value, unit: e.unit }) })),
-];
+// Entries read from the store are never written back to it.
+const readEntries = (db: Db) => new Set(q.healthRecords(db).filter((r) => r.kind === 'read').map((r) => r.hash as string));
+
+const healthRecords = (db: Db): HealthRecord[] => {
+  const read = readEntries(db);
+  return [
+    ...workoutRecords(db),
+    ...bodyWeights(db).filter((e) => !read.has(e.id)).map((e) => ({ kind: 'weight' as const, id: e.id, date: e.date, kg: kg({ weight: e.value, unit: e.unit }) })),
+  ];
+};
 
 const hash = (r: HealthRecord) => JSON.stringify(r);
 
@@ -44,6 +53,31 @@ export const healthChanges = (db: Db, kinds: readonly HealthKind[] = healthKinds
 
 export const markWritten = (db: Db, records: HealthRecord[]) => transaction(db, () => records.forEach((r) => q.writeHealthRecord(db, r.id, r.kind, hash(r))));
 
-export const forgetHealth = (db: Db) => q.forgetHealthRecords(db);
+// Turning writing off forgets what was written; erase also forgets what was read.
+export const forgetHealth = (db: Db, read = false) => q.forgetHealthRecords(db, read);
+
+// Each sample is considered once, so deleting an entry read from the store does not bring it back.
+// The earliest sample of a date is kept, and a date that already has a body weight keeps it.
+export const readWeights = (db: Db, samples: HealthWeight[], timeZone: string) =>
+  transaction(db, () => {
+    const seen = new Set(q.healthRecords(db).filter((r) => r.kind === 'read').map((r) => r.id as string));
+    const dates = new Set(bodyWeights(db).map((e) => e.date));
+    const unit = weightUnit(db);
+    let added = 0;
+    for (const s of [...samples].sort((a, b) => Date.parse(a.at) - Date.parse(b.at))) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
+      const date = localDate(new Date(s.at), timeZone);
+      const value = convert(s.kg, 'kg', unit);
+      let entry = '';
+      if (!dates.has(date) && value > 0) {
+        dates.add(date);
+        entry = add(db, { preset: 'body-weight' }, value, date).id;
+        added++;
+      }
+      q.writeHealthRecord(db, s.id, 'read', entry);
+    }
+    return added;
+  });
 
 export const markRemoved = (db: Db, refs: HealthRef[]) => transaction(db, () => refs.forEach((r) => q.deleteHealthRecord(db, r.id)));

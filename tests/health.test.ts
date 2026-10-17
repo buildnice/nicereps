@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { openDb } from '../cli/db.ts';
-import { forgetHealth, healthChanges, markRemoved, markWritten } from '../src/domain/health.ts';
-import { deleteMeasurement, logBodyWeight } from '../src/domain/measurements.ts';
+import { forgetHealth, healthChanges, markRemoved, markWritten, readWeights } from '../src/domain/health.ts';
+import { bodyWeights, deleteMeasurement, logBodyWeight } from '../src/domain/measurements.ts';
 import { eraseAll } from '../src/domain/portability.ts';
 import * as ops from '../src/domain/workouts.ts';
 
@@ -97,4 +97,31 @@ test('turning sync off forgets what was written, so turning it on rewrites every
   const first = sync(db);
   forgetHealth(db);
   assert.deepEqual(healthChanges(db), first);
+});
+
+test('reading adds the earliest weight of each date that has none, keeps existing entries and never writes them back', () => {
+  const { db } = setup();
+  const samples = [
+    { id: 'hc-1', at: '2026-10-08T21:30:00Z', kg: 79.9 }, // 2026-10-09 07:30 in Brisbane
+    { id: 'hc-2', at: '2026-10-08T22:30:00Z', kg: 80.4 }, // later the same morning
+    { id: 'hc-3', at: '2026-10-07T22:00:00Z', kg: 81 }, // 2026-10-08, already logged in nicereps
+    { id: 'hc-4', at: '2026-10-09T22:00:00Z', kg: 0 },
+  ];
+  assert.equal(readWeights(db, samples, zone), 1);
+  assert.deepEqual(bodyWeights(db).map((e) => [e.date, e.value]).sort(), [['2026-10-08', 80.5], ['2026-10-09', 79.9]]);
+  assert.deepEqual(healthChanges(db).write.map((r) => (r.kind === 'weight' ? r.date : r.kind)), ['workout', '2026-10-08']);
+  assert.equal(readWeights(db, samples, zone), 0);
+});
+
+test('a weight read from the store stays deleted, is read in the weight unit, and erase reads it again', () => {
+  const db = openDb(':memory:');
+  ops.setSetting(db, 'weightUnit', 'lb');
+  const sample = [{ id: 'hk-1', at: '2026-10-08T21:30:00Z', kg: 80 }];
+  readWeights(db, sample, zone);
+  assert.deepEqual(bodyWeights(db).map((e) => [e.value, e.unit]), [[176.4, 'lb']]);
+  deleteMeasurement(db, bodyWeights(db)[0].id);
+  forgetHealth(db);
+  assert.equal(readWeights(db, sample, zone), 0);
+  eraseAll(db);
+  assert.equal(readWeights(db, sample, zone), 1);
 });

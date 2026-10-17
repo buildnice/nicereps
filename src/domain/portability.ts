@@ -9,7 +9,7 @@ import { isDate, localDate, optionalFields } from './rules.ts';
 import { badSetting } from './workouts.ts';
 import { fromFitNotes, fromHevy, fromHevyMeasurements, fromStrengthLog, fromStrong, fromStrongMeasurements, isFitNotes, isHevy, isHevyMeasurements, isStrengthLog, isStrong, isStrongMeasurements, resolveExercises, type Found, type Match } from './apps.ts';
 
-const deviceSettings = new Set(['backupFolder', 'backupAt', 'backupError', 'backupDismissedAt', 'exportedAt', 'health', 'healthAt', 'healthError']);
+const deviceSettings = new Set(['backupFolder', 'backupAt', 'backupError', 'backupDismissedAt', 'exportedAt', 'health', 'healthAt', 'healthError', 'healthRead', 'healthReadAt', 'healthReadError']);
 
 export const format = { name: 'nicereps', version: 1 };
 
@@ -80,7 +80,7 @@ export const eraseAll = (db: Db) =>
     tables(db)
       .reverse()
       .forEach((table) => db.run(`DELETE FROM ${table}`));
-    forgetHealth(db);
+    forgetHealth(db, true);
     seedCatalog(db);
     return files;
   });

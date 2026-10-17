@@ -30,7 +30,8 @@
       "permissions": [
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.health.WRITE_EXERCISE",
-        "android.permission.health.WRITE_WEIGHT"
+        "android.permission.health.WRITE_WEIGHT",
+        "android.permission.health.READ_WEIGHT"
       ],
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
@@ -118,7 +119,7 @@
         "@kingstinct/react-native-healthkit",
         {
           "NSHealthUpdateUsageDescription": "nicereps writes your finished workouts and body weight to Apple Health when you turn it on in Settings.",
-          "NSHealthShareUsageDescription": "nicereps does not read your health data. It only writes finished workouts and body weight.",
+          "NSHealthShareUsageDescription": "nicereps reads body weight from Apple Health when you turn on Read body weight in Settings.",
           "background": false
         }
       ],

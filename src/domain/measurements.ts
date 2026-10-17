@@ -88,7 +88,7 @@ const unitOf = (db: Db, seriesId: string) => {
   return q.readSetting(db, `${kind}Unit`) ?? units[kind];
 };
 
-const add = (db: Db, series: Target, value: number, date: string) => {
+export const add = (db: Db, series: Target, value: number, date: string) => {
   check(value, date);
   const seriesId = 'preset' in series ? track(db, series.preset) : 'custom' in series ? create(db, series.custom) : series.id;
   const id = createId();

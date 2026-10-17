@@ -1,4 +1,4 @@
-import type { HealthKind, HealthRecord, HealthRef } from '@/domain/health';
+import type { HealthKind, HealthRecord, HealthRef, HealthWeight } from '@/domain/health';
 
 export const healthName = 'Health';
 
@@ -6,7 +6,11 @@ export const healthMissing = async (): Promise<string | null> => 'Health data is
 
 export const healthGranted = async (): Promise<HealthKind[]> => [];
 
-export const requestHealth = async () => {};
+export const readGranted = async () => false;
+
+export const requestHealth = async (_wanted: { write: boolean; read: boolean }) => {};
+
+export const readHealthWeights = async (): Promise<HealthWeight[]> => [];
 
 export const writeHealth = async (_records: HealthRecord[], _version: number) => {};
 

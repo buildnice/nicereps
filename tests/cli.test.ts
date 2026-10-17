@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -134,4 +134,16 @@ test('CLI health lists pending writes and removals until marked', () => {
   cli('delete', workout);
   assert.equal(cli('health', '--mark'), `remove  workout  ${workout}`);
   assert.equal(cli('health'), '');
+});
+
+test('CLI health-read adds store weights to dates with none, once, without writing them back', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'nicereps-'));
+  const cli = (...args: string[]) => run(join(dir, 'read.sqlite'), ...args);
+  const samples = join(dir, 'samples.json');
+  writeFileSync(samples, JSON.stringify([{ id: 'a', at: '2026-10-08T21:30:00Z', kg: 79.9 }, { id: 'b', at: '2026-10-07T21:30:00Z', kg: 81 }]));
+  cli('measure', 'body-weight', '80.5', '--date', '2026-10-08');
+  assert.equal(cli('health-read', samples, '--tz', 'Australia/Brisbane'), 'added  1');
+  assert.equal(cli('health-read', samples, '--tz', 'Australia/Brisbane'), 'added  0');
+  assert.match(cli('measurements'), /2026-10-08  80\.5 kg\n.*2026-10-09  79\.9 kg/s);
+  assert.match(cli('health'), /^write  weight  \S+  2026-10-08  80\.5 kg$/);
 });
