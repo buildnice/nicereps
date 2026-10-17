@@ -53,11 +53,12 @@ export const readHealthWeights = async () => {
   return weights;
 };
 
+// The store rejects future times, so today's weight before noon is written at the current time.
 const record = (r: HealthRecord, version: number): HealthConnectRecord => {
   const metadata = { clientRecordId: r.id, clientRecordVersion: version, recordingMethod: RecordingMethod.RECORDING_METHOD_MANUAL_ENTRY };
   return r.kind === 'workout'
     ? { recordType: 'ExerciseSession', exerciseType: ExerciseType.STRENGTH_TRAINING, title: r.title, startTime: r.start, endTime: r.end, metadata }
-    : { recordType: 'Weight', weight: { unit: 'kilograms', value: r.kg }, time: new Date(`${r.date}T12:00:00`).toISOString(), metadata };
+    : { recordType: 'Weight', weight: { unit: 'kilograms', value: r.kg }, time: new Date(Math.min(Date.parse(`${r.date}T12:00:00`), Date.now())).toISOString(), metadata };
 };
 
 // Health Connect takes one record type per insert.
