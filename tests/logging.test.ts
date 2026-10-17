@@ -372,6 +372,8 @@ test('a custom exercise copies an existing one, equipment, bar and note included
   const trapCopy = ops.createExercise(db, 'Trap Pull', trap.mapping, trap);
   assert.equal(ops.exerciseKit(db, 'kg', ops.listExercises(db, 'Trap Pull')[0])?.bar, 20, 'a copied bar exercise uses the Settings bar');
   assert.equal(ops.exerciseDraft(db, trapCopy).equipment, 'trap bar');
+  ops.createExercise(db, 'Close Grip', trap.mapping, { equipment: 'Barbell, close grip' });
+  assert.equal(ops.exerciseKit(db, 'kg', ops.listExercises(db, 'Close Grip')[0])?.bar, 20, 'edited bar equipment keeps the bar');
 
   const hold = ops.createExercise(db, 'Bench Hold', [], { ...draft, mode: 'duration', equipment: '  ' });
   assert.deepEqual([ops.exerciseDraft(db, hold).bar, ops.exerciseDraft(db, hold).equipment], [null, null], 'only weight × reps keeps a bar');
