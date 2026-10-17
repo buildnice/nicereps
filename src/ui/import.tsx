@@ -55,6 +55,8 @@ export function Import() {
   useEffect(() => discardImport, []);
   // An unfinished import step holds a database transaction open, so the page stays until it ends.
   useEffect(() => navigation.addListener('beforeRemove', (event) => running.current && event.preventDefault()), [navigation]);
+  // A native swipe back is not stopped by beforeRemove.
+  useEffect(() => navigation.setOptions({ gestureEnabled: !busy }), [navigation, busy]);
   const work = async <T,>(label: string, at: 'file' | 'import', job: (progress: (done: number) => void) => Promise<T>) => {
     running.current = true;
     setBusy({ label, done: 0, at });
@@ -130,7 +132,7 @@ export function Import() {
       {busy?.at === 'file' && progress}
       {error && <Txt variant="meta" accessibilityLiveRegion="polite" style={{ marginTop: space.s }}>{error}</Txt>}
       {picked && preview && (
-        <View pointerEvents={busy ? 'none' : 'auto'}>
+        <View pointerEvents={busy ? 'none' : 'auto'} accessibilityElementsHidden={!!busy} importantForAccessibility={busy ? 'no-hide-descendants' : 'auto'}>
           <Section title="Selected file">
             {!groups.length && !preview.errors.length && <Txt variant="meta" tone="muted">No records found.</Txt>}
             {groups.map(({ title, n }) => (
@@ -202,9 +204,7 @@ export function Import() {
                   )}
                 </Section>
               )}
-              {busy?.at === 'import' ? (
-                progress
-              ) : (
+              {busy?.at !== 'import' && (
                 <Tap
                   disabled={!!busy}
                   onPress={async () => {
@@ -227,6 +227,7 @@ export function Import() {
           )}
         </View>
       )}
+      {busy?.at === 'import' && progress}
     </Page>
   );
 }
