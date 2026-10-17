@@ -18,7 +18,7 @@ import type { Draft } from './draft';
 import { Keypad } from './keypad';
 import { BottomSheet, Reveal, SheetHost } from './sheet';
 import { describeSet, Icon, inUnit, radius, space, Tap, touch, Txt, type, useColors, usePrototype } from './theme';
-import { decimals, entered, ExerciseNote, ExercisePicker, fieldText, modeFields, modeNames, nextType, setLabel, timeFields, typed, type Field } from './workout';
+import { decimals, entered, ExerciseNote, ExercisePicker, NewExercise, fieldText, modeFields, modeNames, nextType, setLabel, timeFields, typed, type Field } from './workout';
 
 type Plan = ReturnType<typeof ops.getTemplate>;
 type Start = (from: { templateId: string }) => void;
@@ -111,6 +111,7 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
   const [name, setName] = useState(plan.name);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [copying, setCopying] = useState<number | null>(null);
   const [edit, setEdit] = useState<Edit | null>(null);
   const [shown, setShown] = useState(edit);
   if (edit && edit !== shown) setShown(edit);
@@ -324,7 +325,27 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
               >
                 <Txt variant="label" tone="muted">Remove</Txt>
               </Tap>
+              <Tap
+                accessibilityLabel={`Copy ${e.name} as a custom exercise`}
+                accessibilityState={{ expanded: copying === i }}
+                onPress={() => setCopying(copying === i ? null : i)}
+                style={[styles.action, styles.dashed, { borderColor: c.line }]}
+              >
+                <Txt variant="label" tone="muted">Copy as custom</Txt>
+              </Tap>
             </View>
+            {copying === i && (
+              <Animated.View entering={FadeIn.duration(160)}>
+                <NewExercise
+                  from={e.exerciseId}
+                  onFocus={() => setEdit(null)}
+                  onCreate={(exerciseId) => {
+                    setCopying(null);
+                    change((x) => x.splice(next > 0 ? next : x.length, 0, { exerciseId, name: '', mode: 'reps', exerciseNote: null, superset: null, sets: [{ type: 'normal', weight: 0, reps: 0, duration: null, distance: null, rounds: null, recovery: null, rest: null, targetRpe: null, options: null }] }));
+                  }}
+                />
+              </Animated.View>
+            )}
           </View>
         );
       })}

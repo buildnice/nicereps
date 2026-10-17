@@ -13,7 +13,9 @@ export const kitDefaults: Record<WeightUnit, Kit> = {
   lb: { bar: 45, plates: [45, 35, 25, 10, 5, 2.5] },
 };
 
-export const isBarbell = (source: string | null) => !!source && (['barbell', 'e-z curl bar'].includes(catalog[source]?.equipment ?? '') || source === 'Trap_Bar_Deadlift');
+export const equipment = (source: string | null, own: string | null) => (source === 'Trap_Bar_Deadlift' ? 'trap bar' : source ? (catalog[source]?.equipment ?? null) : own);
+
+export const isBarbell = (source: string | null, own: string | null) => ['barbell', 'e-z curl bar', 'trap bar'].includes(equipment(source, own)?.toLowerCase() ?? '');
 
 const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 

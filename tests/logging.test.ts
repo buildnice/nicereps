@@ -355,3 +355,25 @@ test('a workout summary counts its own volume, muscles, records and trends', () 
   assert.deepEqual([ninth.exercises[1].trend, ninth.exercises[1].top], [[], null]);
   assert.equal(ops.workoutSummary(db, days[9]).exercises[0].records.length, 1);
 });
+
+test('a custom exercise copies an existing one, equipment, bar and note included', () => {
+  const { db, id } = setup();
+  const bench = id('Barbell Bench Press - Medium Grip');
+  ops.setBar(db, bench, 15, 'kg');
+  ops.setExerciseNote(db, bench, 'seat 4');
+  const draft = ops.exerciseDraft(db, bench);
+  assert.equal(draft.equipment, 'barbell');
+  assert.deepEqual(draft.mapping.map((m) => m.role).sort(), ['primary', 'secondary', 'secondary']);
+  const copy = ops.createExercise(db, 'Close Bench', draft.mapping, draft);
+  assert.deepEqual({ ...ops.exerciseDraft(db, copy), name: draft.name }, draft);
+  assert.equal(ops.exerciseKit(db, 'kg', ops.listExercises(db, 'Close Bench')[0])?.bar, 15);
+
+  const trap = ops.exerciseDraft(db, id('Trap Bar Deadlift'));
+  const trapCopy = ops.createExercise(db, 'Trap Pull', trap.mapping, trap);
+  assert.equal(ops.exerciseKit(db, 'kg', ops.listExercises(db, 'Trap Pull')[0])?.bar, 20, 'a copied bar exercise uses the Settings bar');
+  assert.equal(ops.exerciseDraft(db, trapCopy).equipment, 'trap bar');
+
+  const hold = ops.createExercise(db, 'Bench Hold', [], { ...draft, mode: 'duration', equipment: '  ' });
+  assert.deepEqual([ops.exerciseDraft(db, hold).bar, ops.exerciseDraft(db, hold).equipment], [null, null], 'only weight × reps keeps a bar');
+  assert.throws(() => ops.createExercise(db, 'Bad Bar', [], { bar: 0, barUnit: 'kg' }), /Bar weight/);
+});

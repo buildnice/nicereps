@@ -79,8 +79,10 @@ export const readSetting = (db: Db, key: string) => db.all('SELECT value FROM se
 export const writeSetting = (db: Db, key: string, value: string) =>
   db.run('INSERT INTO setting (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [key, value]);
 
-export const insertExercise = (db: Db, id: string, name: string, mode: Mode, rest: number, mapping: Mapping) => {
-  db.run('INSERT INTO exercise (id, name, mode, rest) VALUES (?, ?, ?, ?)', [id, name, mode, rest]);
+export type ExerciseFields = { mode: Mode; rest: number; equipment: string | null; bar: number | null; barUnit: WeightUnit | null; note: string | null };
+
+export const insertExercise = (db: Db, id: string, name: string, { mode, rest, equipment, bar, barUnit, note }: ExerciseFields, mapping: Mapping) => {
+  db.run('INSERT INTO exercise (id, name, mode, rest, equipment, bar, bar_unit, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [id, name, mode, rest, equipment, bar, barUnit, note]);
   replaceExerciseMapping(db, id, mapping);
 };
 
@@ -90,16 +92,22 @@ export const replaceExerciseMapping = (db: Db, id: string, mapping: Mapping) => 
   mapping.forEach((m) => db.run('INSERT INTO exercise_muscle (exercise_id, muscle, role) VALUES (?, ?, ?)', [id, m.muscle, m.role]));
 };
 
+export const exercise = (db: Db, id: string) => {
+  const e = one(db, 'SELECT name, mode, rest, source, equipment, bar, bar_unit, note FROM exercise WHERE id = ?', [id]);
+  const mapping = db.all('SELECT muscle, role FROM exercise_muscle WHERE exercise_id = ? ORDER BY role, muscle', [id]).map((m) => ({ muscle: m.muscle as string, role: m.role as Role }));
+  return { name: e.name as string, mode: e.mode as Mode, rest: e.rest as number, source: e.source as string | null, equipment: e.equipment as string | null, bar: e.bar as number | null, barUnit: e.bar_unit as WeightUnit | null, note: e.note as string | null, mapping };
+};
+
 export const exerciseId = (db: Db, name: string) => one(db, 'SELECT id FROM exercise WHERE name = ?', [name]).id as string;
 
 export const exercises = (db: Db, query = '', limit = -1) => {
   const words = query.split(/\s+/).filter(Boolean).map((w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`);
   return db
-    .all(`SELECT id, name, mode, source, bar, bar_unit FROM exercise WHERE ${['1', ...words.map(() => "name LIKE ? ESCAPE '\\'")].join(' AND ')} ORDER BY source IS NOT NULL, name LIMIT ?`, [
+    .all(`SELECT id, name, mode, source, equipment, bar, bar_unit FROM exercise WHERE ${['1', ...words.map(() => "name LIKE ? ESCAPE '\\'")].join(' AND ')} ORDER BY source IS NOT NULL, name LIMIT ?`, [
       ...words,
       limit,
     ])
-    .map((e) => ({ id: e.id as string, name: e.name as string, mode: e.mode as Mode, source: e.source as string | null, bar: e.bar as number | null, barUnit: e.bar_unit as WeightUnit | null }));
+    .map((e) => ({ id: e.id as string, name: e.name as string, mode: e.mode as Mode, source: e.source as string | null, equipment: e.equipment as string | null, bar: e.bar as number | null, barUnit: e.bar_unit as WeightUnit | null }));
 };
 
 export const templates = (db: Db) =>
@@ -347,7 +355,7 @@ export const workouts = (db: Db, where: string, params: Value[], limit = -1, exe
   const rows = db.all(`SELECT id, name, date, time_zone, started_at, finished_at, note FROM workout WHERE ${where} ORDER BY date DESC, started_at DESC LIMIT ?`, [...params, limit]);
   const ids = JSON.stringify(rows.map((w) => w.id));
   const exerciseRows = db.all(
-    'SELECT we.id, we.workout_id, we.exercise_id, e.name, e.mode, e.rest, e.source, e.bar, e.bar_unit, e.note AS exercise_note, we.superset, we.note FROM workout_exercise we JOIN exercise e ON e.id = we.exercise_id WHERE we.workout_id IN (SELECT value FROM json_each(?)) AND (? IS NULL OR e.name = ?) ORDER BY we.position',
+    'SELECT we.id, we.workout_id, we.exercise_id, e.name, e.mode, e.rest, e.source, e.equipment, e.bar, e.bar_unit, e.note AS exercise_note, we.superset, we.note FROM workout_exercise we JOIN exercise e ON e.id = we.exercise_id WHERE we.workout_id IN (SELECT value FROM json_each(?)) AND (? IS NULL OR e.name = ?) ORDER BY we.position',
     [ids, exercise, exercise],
   );
   const exerciseIds = JSON.stringify(exerciseRows.map((e) => e.id));
@@ -369,6 +377,7 @@ export const workouts = (db: Db, where: string, params: Value[], limit = -1, exe
       mode: e.mode as Mode,
       rest: e.rest as number,
       source: e.source as string | null,
+      equipment: e.equipment as string | null,
       bar: e.bar as number | null,
       barUnit: e.bar_unit as WeightUnit | null,
       exerciseNote: e.exercise_note as string | null,

@@ -15,7 +15,8 @@ import { seed } from './fixtures.ts';
 
 const usage = `Usage: nicereps <db-file> <command> [args]
   seed                                  add fixture exercises, templates and workouts
-  exercise <name> [reps|duration|distance|interval|check] [primary,...] [secondary,...] [--rest S]
+  exercise <name> [reps|duration|distance|interval|check] [primary,...] [secondary,...] [--rest S] [--equipment TEXT] [--from <exercise>]
+                                        --from copies that exercise; given values override it
   exercises [search]                    list exercises, custom first
   default-map <exercise> <primary,...> [secondary,...]
   start [template] [--from WORKOUT] [--at ISO] [--tz TZ]
@@ -108,7 +109,7 @@ const parsed = parseArgs({
   allowPositionals: true,
   options: {
     ...Object.fromEntries(
-      ['at', 'tz', 'from', 'date', 'photos', 'apply', 'keep', 'weight', 'reps', 'target-reps', 'type', 'done', 'duration', 'distance', 'rounds', 'recovery', 'rest', 'target-rpe', 'rpe', 'comment', 'options', 'fields'].map((o) => [
+      ['at', 'tz', 'from', 'equipment', 'date', 'photos', 'apply', 'keep', 'weight', 'reps', 'target-reps', 'type', 'done', 'duration', 'distance', 'rounds', 'recovery', 'rest', 'target-rpe', 'rpe', 'comment', 'options', 'fields'].map((o) => [
       o,
       { type: 'string' as const },
     ]),
@@ -279,11 +280,18 @@ try {
     case 'seed':
       seed(db).forEach((id) => showWorkout(ops.getWorkout(db, id)));
       break;
-    case 'exercise':
+    case 'exercise': {
+      const from = values.from === undefined ? undefined : ops.exerciseDraft(db, exerciseId(db, values.from));
       console.log(
-        ops.createExercise(db, args[0], mapping(args[2], args[3]), { mode: (args[1] ?? 'reps') as Mode, ...(values.rest !== undefined && { rest: num(values.rest) }) }),
+        ops.createExercise(db, args[0], from && args[2] === undefined ? from.mapping : mapping(args[2], args[3]), {
+          ...from,
+          ...(args[1] !== undefined && { mode: args[1] as Mode }),
+          ...(values.rest !== undefined && { rest: num(values.rest) }),
+          ...(values.equipment !== undefined && { equipment: values.equipment }),
+        }),
       );
       break;
+    }
     case 'exercises':
       ops.listExercises(db, args.join(' ')).forEach((e) => console.log(`${e.id}  ${e.name}  ${e.mode}${e.source ? '' : '  custom'}`));
       break;

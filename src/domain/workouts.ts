@@ -5,7 +5,7 @@ import * as q from '../data/queries.ts';
 import type { DistanceUnit, Mapping, Mode, SetFields, WeightUnit } from '../data/queries.ts';
 import { bodyweight } from '../../assets/catalog/bodyweight.ts';
 import { bodyWeightLookup } from './measurements.ts';
-import { isBarbell, kitDefaults, kitOptions, type Kit } from './plates.ts';
+import { equipment, isBarbell, kitDefaults, kitOptions, type Kit } from './plates.ts';
 import { addDays, convert, homeLayout as layout, homeSections, optionalFields, e1rmTrend, holds, holdTrend, isDate, isWorkingSet, localDate, modes, muscleSets, personalBests, progressed, records, repMaxes, setTypes, supersetBlocks, volume, weekdays, weightTrend, workingSetsByDate } from './rules.ts';
 
 type PlannedSet = Omit<SetFields, 'completed'>;
@@ -90,25 +90,36 @@ export const kit = (db: Db, unit: WeightUnit): Kit => {
   return { bar: bar ? Number(bar) : kitDefaults[unit].bar, plates: plates == null ? kitDefaults[unit].plates : plates.split(',').filter(Boolean).map(Number) };
 };
 
-type BarExercise = { source: string | null; bar: number | null; barUnit: WeightUnit | null };
+type BarExercise = { source: string | null; equipment: string | null; bar: number | null; barUnit: WeightUnit | null };
 
 export const exerciseKit = (db: Db, unit: WeightUnit, exercise: BarExercise): Kit | undefined =>
-  exercise.bar != null ? { ...kit(db, unit), bar: convert(exercise.bar, exercise.barUnit ?? 'kg', unit) } : isBarbell(exercise.source) ? kit(db, unit) : undefined;
+  exercise.bar != null ? { ...kit(db, unit), bar: convert(exercise.bar, exercise.barUnit ?? 'kg', unit) } : isBarbell(exercise.source, exercise.equipment) ? kit(db, unit) : undefined;
+
+const checkBar = (bar: number | null) => {
+  if (bar != null && !(Number.isFinite(bar) && bar > 0)) throw new Error('Bar weight must be above 0');
+};
 
 export const setBar = (db: Db, exerciseId: string, bar: number | null, unit: WeightUnit) => {
-  if (bar != null && !(Number.isFinite(bar) && bar > 0)) throw new Error('Bar weight must be above 0');
+  checkBar(bar);
   q.setBar(db, exerciseId, bar, unit);
 };
 
-export const createExercise = (db: Db, name: string, mapping: Mapping, { mode = 'reps', rest = 120 }: { mode?: Mode; rest?: number } = {}) =>
+export const createExercise = (db: Db, name: string, mapping: Mapping, { mode = 'reps', rest = 120, equipment = null, bar = null, barUnit = null, note = null }: Partial<q.ExerciseFields> = {}) =>
   transaction(db, () => {
     if (!name.trim()) throw new Error('Exercise name is required');
     if (!modes.includes(mode)) throw new Error(`Mode must be one of: ${modes.join(', ')}`);
     if (!(Number.isInteger(rest) && rest >= 0)) throw new Error('Rest must be whole seconds');
+    checkBar(bar);
+    const barred = mode === 'reps' && bar != null;
     const id = createId();
-    q.insertExercise(db, id, name.trim(), mode, rest, checkMapping(mapping));
+    q.insertExercise(db, id, name.trim(), { mode, rest, equipment: equipment?.trim() || null, bar: barred ? bar : null, barUnit: barred ? (barUnit ?? 'kg') : null, note: note?.trim() || null }, checkMapping(mapping));
     return id;
   });
+
+export const exerciseDraft = (db: Db, exerciseId: string) => {
+  const { source, ...e } = q.exercise(db, exerciseId);
+  return { ...e, equipment: equipment(source, e.equipment) };
+};
 
 export const listExercises = q.exercises;
 

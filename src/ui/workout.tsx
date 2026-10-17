@@ -10,6 +10,7 @@ import { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
 import { CaretLeftIcon } from 'phosphor-react-native/src/icons/CaretLeft';
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { CheckIcon } from 'phosphor-react-native/src/icons/Check';
+import { CopyIcon } from 'phosphor-react-native/src/icons/Copy';
 import { DotsThreeVerticalIcon } from 'phosphor-react-native/src/icons/DotsThreeVertical';
 import { PencilSimpleIcon } from 'phosphor-react-native/src/icons/PencilSimple';
 import { PlusIcon } from 'phosphor-react-native/src/icons/Plus';
@@ -19,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Mode, Role, SetFields, SetType } from '@/data/queries';
 import { addDays, advance, convert, digitClock, localDate, digitSeconds, intervalPhases, modes, optionalFields, pace, phaseAt, phaseEnds, shownFields, supersetBlocks, timeDigits, unusual, type OptionalField } from '@/domain/rules';
 import * as measures from '@/domain/measurements';
-import { loadPlates, type Kit } from '@/domain/plates';
+import { equipment, loadPlates, type Kit } from '@/domain/plates';
 import * as ops from '@/domain/workouts';
 import { backup } from '@/platform/data';
 import { syncHealth } from '@/platform/health';
@@ -180,6 +181,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const [history, setHistory] = useState<string | null>(null);
   const [howTo, setHowTo] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
+  const [copying, setCopying] = useState<string | null>(null);
   const [flagged, setFlagged] = useState<string[]>([]);
   const placed = useRef<{ y: number; height: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -306,11 +308,12 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     };
   }, [deleted]);
 
-  const addExercise = (exerciseId: string) => {
+  const addExercise = (exerciseId: string, at?: number) => {
     let added = '';
     run(() => {
       added = ops.addExercise(db, id, exerciseId);
       ops.addSet(db, added);
+      if (at !== undefined) ops.moveExercise(db, added, at);
     });
     show(added);
     setAdding(false);
@@ -519,7 +522,27 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                       <Txt variant="label" tone="muted">How to</Txt>
                     </Tap>
                   )}
+                  <Tap
+                    accessibilityLabel={`Copy ${exercise.name} as a custom exercise`}
+                    accessibilityState={{ expanded: copying === exercise.id }}
+                    onPress={() => setCopying(copying === exercise.id ? null : exercise.id)}
+                    style={[styles.action, { borderColor: c.line }]}
+                  >
+                    <Txt variant="label" tone="muted">Copy as custom</Txt>
+                  </Tap>
                 </View>
+                {copying === exercise.id && (
+                  <Animated.View entering={FadeIn.duration(160)}>
+                    <NewExercise
+                      from={exercise.exerciseId}
+                      onFocus={() => setEdit(null)}
+                      onCreate={(created) => {
+                        setCopying(null);
+                        addExercise(created, next ? exercises.indexOf(next) : exercises.length);
+                      }}
+                    />
+                  </Animated.View>
+                )}
                 {guide && howTo === exercise.id && (
                   <Animated.View entering={FadeIn.duration(160)} style={{ gap: space.s }}>
                     <View style={{ flexDirection: 'row', gap: space.s }}>
@@ -676,19 +699,9 @@ function Totals({ workout }: { workout: ReturnType<typeof ops.getWorkout> }) {
 export function ExercisePicker({ exclude, onPick, onFocus, create = true }: { exclude: string[]; onPick: (exerciseId: string) => void; onFocus?: () => void; create?: boolean }) {
   const c = useColors();
   const [query, setQuery] = useState('');
-  const blank = { name: '', mode: 'reps' as Mode, muscles: {} as Record<string, Role> };
-  const [custom, setCustom] = useState<typeof blank & { error?: string }>(blank);
-  const found = ops.listExercises(db, query, 51 + exclude.length).filter((x) => !exclude.includes(x.id));
-
-  const addCustom = () => {
-    try {
-      const mapping = Object.entries(custom.muscles).map(([muscle, role]) => ({ muscle, role }));
-      onPick(ops.createExercise(db, custom.name, mapping, { mode: custom.mode }));
-      setCustom(blank);
-    } catch (error) {
-      setCustom({ ...custom, error: /UNIQUE/.test(String(error)) ? 'That exercise already exists.' : (error as Error).message });
-    }
-  };
+  const [copying, setCopying] = useState(false);
+  const [from, setFrom] = useState<string>();
+  const found = ops.listExercises(db, query, 51 + exclude.length).filter((x) => copying || !exclude.includes(x.id));
 
   return (
     <Animated.View entering={FadeIn.duration(160)} style={[styles.card, { backgroundColor: c.surface, paddingVertical: space.xs }]}>
@@ -702,10 +715,17 @@ export function ExercisePicker({ exclude, onPick, onFocus, create = true }: { ex
         autoCorrect={false}
         style={[styles.note, { backgroundColor: c.raised, color: c.text, marginBottom: space.xs }]}
       />
+      {copying && <Txt variant="meta" tone="muted" style={{ marginBottom: space.xs }}>Tap the exercise to start from.</Txt>}
       {found
         .slice(0, 50)
         .map((x) => (
-          <Row key={x.id} title={x.name} meta={`${modeNames[x.mode]} · ${(x.source && catalog[x.source]?.equipment) || (x.source ? 'catalog' : 'custom')}`} icon={PlusIcon} onPress={() => onPick(x.id)} />
+          <Row
+            key={x.id}
+            title={x.name}
+            meta={[modeNames[x.mode], equipment(x.source, x.equipment) ?? (x.source && 'catalog'), !x.source && 'custom'].filter(Boolean).join(' · ')}
+            icon={copying ? CopyIcon : PlusIcon}
+            onPress={() => (copying ? (setFrom(x.id), setCopying(false)) : onPick(x.id))}
+          />
         ))}
       {(found.length > 50 || !found.length) && (
         <Txt variant="meta" tone="muted" style={{ marginTop: space.s }}>
@@ -715,39 +735,89 @@ export function ExercisePicker({ exclude, onPick, onFocus, create = true }: { ex
       {create && (
         <>
           <Txt variant="caps" tone="muted" style={{ marginTop: space.l }}>New exercise</Txt>
-          <TextInput
-            value={custom.name}
-            onChangeText={(name) => setCustom({ ...custom, name, error: undefined })}
-            onFocus={onFocus}
-            placeholder="Name"
-            placeholderTextColor={c.faint}
-            accessibilityLabel="New exercise name"
-            style={[styles.note, { backgroundColor: c.raised, color: c.text }]}
-          />
-          <View accessibilityRole="radiogroup" style={styles.chips}>
-            {modes.map((mode) => (
-              <Chip key={mode} label={modeNames[mode]} selected={custom.mode === mode} onPress={() => setCustom({ ...custom, mode })} />
-            ))}
-          </View>
-          <Txt variant="caps" tone="muted" style={{ marginTop: space.m }}>Muscles · tap for primary, again for secondary</Txt>
-          <View style={styles.chips}>
-            {muscles.map((muscle) => {
-              const role = custom.muscles[muscle];
-              const select = () => {
-                const { [muscle]: _, ...rest } = custom.muscles;
-                const next = nextRole[role ?? 'none'];
-                setCustom({ ...custom, muscles: next === 'none' ? rest : { ...rest, [muscle]: next } });
-              };
-              return <Chip key={muscle} label={role ? `${muscle} · ${role}` : muscle} selected={!!role} role="button" onPress={select} />;
-            })}
-          </View>
-          {custom.error && <Txt variant="meta" style={{ marginTop: space.s }}>{custom.error}</Txt>}
-          <Tap onPress={addCustom} style={[styles.action, { borderColor: c.line, marginVertical: space.s }]}>
-            <Txt variant="label">Add new exercise</Txt>
+          <Tap
+            accessibilityLabel={`Start from ${from ? ops.exerciseDraft(db, from).name : 'nothing'}, change`}
+            accessibilityState={{ selected: copying }}
+            onPress={() => setCopying(!copying)}
+            style={[styles.bar, { backgroundColor: c.raised, marginBottom: space.xs }, copying && { borderWidth: 2, borderColor: c.text }]}
+          >
+            <Txt variant="label">Start from</Txt>
+            <Txt variant="meta" tone="muted">{from ? ops.exerciseDraft(db, from).name : 'Blank'}</Txt>
           </Tap>
+          {from && (
+            <Tap onPress={() => setFrom(undefined)} style={{ alignSelf: 'flex-start', marginBottom: space.xs }}>
+              <Txt variant="meta" tone="muted">Start blank</Txt>
+            </Tap>
+          )}
+          <NewExercise key={from} from={from} onFocus={onFocus} onCreate={onPick} />
         </>
       )}
     </Animated.View>
+  );
+}
+
+const draft = (exerciseId?: string) => {
+  if (!exerciseId) return { name: '', mode: 'reps' as Mode, equipment: '', muscles: {} as Record<string, Role> };
+  const { name, mapping, equipment, ...copied } = ops.exerciseDraft(db, exerciseId);
+  return { ...copied, name: `${name} (copy)`, equipment: equipment ?? '', muscles: Object.fromEntries(mapping.map((m) => [m.muscle, m.role])) as Record<string, Role> };
+};
+
+export function NewExercise({ from, onCreate, onFocus }: { from?: string; onCreate: (exerciseId: string) => void; onFocus?: () => void }) {
+  const c = useColors();
+  const [custom, setCustom] = useState<ReturnType<typeof draft> & { error?: string }>(() => draft(from));
+
+  const addCustom = () => {
+    try {
+      const mapping = Object.entries(custom.muscles).map(([muscle, role]) => ({ muscle, role }));
+      onCreate(ops.createExercise(db, custom.name, mapping, custom));
+      setCustom(draft());
+    } catch (error) {
+      setCustom({ ...custom, error: /UNIQUE/.test(String(error)) ? 'That exercise already exists.' : (error as Error).message });
+    }
+  };
+
+  return (
+    <>
+      <TextInput
+        value={custom.name}
+        onChangeText={(name) => setCustom({ ...custom, name, error: undefined })}
+        onFocus={onFocus}
+        placeholder="Name"
+        placeholderTextColor={c.faint}
+        accessibilityLabel="New exercise name"
+        style={[styles.note, { backgroundColor: c.raised, color: c.text }]}
+      />
+      <View accessibilityRole="radiogroup" style={styles.chips}>
+        {modes.map((mode) => (
+          <Chip key={mode} label={modeNames[mode]} selected={custom.mode === mode} onPress={() => setCustom({ ...custom, mode })} />
+        ))}
+      </View>
+      <TextInput
+        value={custom.equipment}
+        onChangeText={(equipment) => setCustom({ ...custom, equipment })}
+        onFocus={onFocus}
+        placeholder="Equipment"
+        placeholderTextColor={c.faint}
+        accessibilityLabel="New exercise equipment"
+        style={[styles.note, { backgroundColor: c.raised, color: c.text, marginTop: space.s }]}
+      />
+      <Txt variant="caps" tone="muted" style={{ marginTop: space.m }}>Muscles · tap for primary, again for secondary</Txt>
+      <View style={styles.chips}>
+        {[...new Set([...muscles, ...Object.keys(custom.muscles)])].map((muscle) => {
+          const role = custom.muscles[muscle];
+          const select = () => {
+            const { [muscle]: _, ...rest } = custom.muscles;
+            const next = nextRole[role ?? 'none'];
+            setCustom({ ...custom, muscles: next === 'none' ? rest : { ...rest, [muscle]: next } });
+          };
+          return <Chip key={muscle} label={role ? `${muscle} · ${role}` : muscle} selected={!!role} role="button" onPress={select} />;
+        })}
+      </View>
+      {custom.error && <Txt variant="meta" style={{ marginTop: space.s }}>{custom.error}</Txt>}
+      <Tap onPress={addCustom} style={[styles.action, { borderColor: c.line, marginVertical: space.s }]}>
+        <Txt variant="label">Add new exercise</Txt>
+      </Tap>
+    </>
   );
 }
 
