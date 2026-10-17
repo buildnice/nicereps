@@ -267,6 +267,24 @@ test('comments attach to a workout, an exercise and a set, and one workout mixes
   assert.match(cli('totals', '2026-10-08'), /back +5\n    Drill check  1\n    Drill distance  1\n    Drill duration  1\n    Drill interval  1\n    Drill reps  1$/);
 });
 
+test("an exercise's own note carries into every workout and template, apart from each workout's note", () => {
+  const cli = db('v6.sql');
+  assert.equal(cli('exercise-note', 'Back Squat', '  seat 4, pin 7 '), 'Back Squat note: seat 4, pin 7');
+  const active = cli('active');
+  assert.match(active, /Back Squat  reps  \[[^\]]*\]\n    note: seat 4, pin 7\n/);
+  assert.match(cli('template', 'Legs'), /Back Squat  reps\n     note: seat 4, pin 7\n/);
+  const squat = id(active, /Back Squat/);
+  cli('note-exercise', squat, 'knee wraps today');
+  cli('finish', active.split('  ')[0]);
+  const fresh = cli('start', 'Legs', ...at('2026-10-10'));
+  const shown = cli('show', fresh);
+  assert.match(shown, /Back Squat  reps  \[[^\]]*\]\n    note: seat 4, pin 7\n/);
+  assert.doesNotMatch(shown, /knee wraps/);
+  assert.match(cli('history', 'Back Squat'), /"knee wraps today"\n(?!    note:)/);
+  assert.equal(cli('exercise-note', 'Back Squat'), 'Back Squat note: none');
+  assert.doesNotMatch(cli('show', fresh), /note:/);
+});
+
 test('deleting a finished workout removes it from history, totals and records', () => {
   const cli = db();
   cli('seed');

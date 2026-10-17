@@ -277,6 +277,12 @@ export const noteWorkout = (db: Db, workoutId: string, note: string) => q.setNot
 
 export const noteExercise = (db: Db, workoutExerciseId: string, note: string) => q.setNote(db, 'workout_exercise', workoutExerciseId, note.trim() || null);
 
+export const setExerciseNote = (db: Db, exerciseId: string, note: string) => {
+  const kept = note.trim() || null;
+  q.setNote(db, 'exercise', exerciseId, kept);
+  return kept;
+};
+
 export const discardWorkout = (db: Db, workoutId: string) => transaction(db, () => q.deleteUnfinishedWorkout(db, workoutId));
 
 export const deleteWorkout = (db: Db, workoutId: string) => transaction(db, () => q.deleteWorkout(db, workoutId));

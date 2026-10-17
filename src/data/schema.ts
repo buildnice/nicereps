@@ -148,6 +148,7 @@ export const migrations: (string[] | ((db: Db) => void))[] = [
       exercise_id TEXT NOT NULL REFERENCES exercise(id) ON DELETE CASCADE,
       PRIMARY KEY (app, name))`,
   ],
+  ['ALTER TABLE exercise ADD COLUMN note TEXT'],
   ["CREATE TABLE health_record (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('workout', 'weight')), hash TEXT NOT NULL)"],
 ];
 

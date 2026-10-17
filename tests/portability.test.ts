@@ -8,7 +8,7 @@ import { seed } from '../cli/fixtures.ts';
 import { catalog } from '../assets/catalog/exercises.ts';
 import { addPhoto, logMeasurements, starSeries } from '../src/domain/measurements.ts';
 import { applyImport, blankTemplate, eraseAll, exportArchive, importHighlights, parseCsv, previewImport, readImport, toCsv } from '../src/domain/portability.ts';
-import { changeDay, correctSet, createExercise, firstRun, listTemplates, scheduleWeekday, setSetting, starRecord } from '../src/domain/workouts.ts';
+import { changeDay, correctSet, createExercise, firstRun, listTemplates, scheduleWeekday, setExerciseNote, setSetting, starRecord } from '../src/domain/workouts.ts';
 
 const filled = () => {
   const db = openDb(':memory:');
@@ -226,6 +226,36 @@ test('skipping a changed exercise keeps its local muscle mapping; replace restor
   assert.deepEqual(records(db), before);
   applyImport(db, imp, 'replace');
   assert.deepEqual(records(db), original);
+});
+
+test("exercise notes travel in exercise.csv; an older export without the column keeps local notes", async () => {
+  const db = clean();
+  const note = (d: ReturnType<typeof openDb>, name: string) => d.all('SELECT note FROM exercise WHERE name = ?', [name])[0].note;
+  const id = (name: string) => db.all('SELECT id FROM exercise WHERE name = ?', [name])[0].id as string;
+  setExerciseNote(db, id('Back Squat'), 'seat 4, "pin" 7');
+  setExerciseNote(db, id('Tyre Flip Custom'), '=big tyre');
+  const catalog = db.all('SELECT name FROM exercise WHERE source IS NOT NULL LIMIT 1')[0].name as string;
+  setExerciseNote(db, id(catalog), 'cable at 3');
+  const chunks = await archive(db);
+  const [header] = parseCsv(strFromU8(unzipSync(Buffer.concat(chunks))['exercise.csv']));
+  assert.ok(header.includes('note'));
+  const fresh = openDb(':memory:');
+  applyImport(fresh, readImport(fresh, chunks), 'update');
+  assert.notEqual(fresh.all('SELECT id FROM exercise WHERE name = ?', [catalog])[0].id, id(catalog));
+  assert.deepEqual([note(fresh, 'Back Squat'), note(fresh, 'Tyre Flip Custom'), note(fresh, catalog)], ['seat 4, "pin" 7', '=big tyre', 'cable at 3']);
+  const old = rezip(chunks, (f) => {
+    const [columns, ...rows] = parseCsv(strFromU8(f['exercise.csv'])) as string[][];
+    f['exercise.csv'] = strToU8(toCsv(columns.filter((c) => c !== 'note'), rows.map((r) => Object.fromEntries(columns.map((c, i) => [c, r[i]])))));
+  });
+  setExerciseNote(db, id('Back Squat'), 'narrow grip');
+  for (const action of ['update', 'replace'] as const) {
+    applyImport(db, readImport(db, old), action);
+    assert.equal(note(db, 'Back Squat'), 'narrow grip');
+  }
+  const blank = openDb(':memory:');
+  applyImport(blank, readImport(blank, old), 'replace');
+  assert.equal(note(blank, 'Back Squat'), null);
+  assert.equal(note(blank, 'Tyre Flip Custom'), null);
 });
 
 test('malformed imports are rejected with no partial writes', async () => {
