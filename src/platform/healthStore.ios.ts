@@ -43,7 +43,7 @@ export const writeHealth = async (records: HealthRecord[], version: number) => {
     const metadata = { HKSyncIdentifier: r.id, HKSyncVersion: version };
     if (r.kind === 'workout') await saveWorkoutSample(WorkoutActivityType.traditionalStrengthTraining, [], new Date(r.start), new Date(r.end), undefined, metadata);
     else {
-      const at = new Date(Math.min(Date.parse(`${r.date}T12:00:00`), Date.now()));
+      const at = new Date(Math.max(Date.parse(`${r.date}T00:00:00`), Math.min(Date.parse(`${r.date}T12:00:00`), Date.now())));
       await saveQuantitySample(types.weight, 'kg', r.kg, at, at, metadata);
     }
   }

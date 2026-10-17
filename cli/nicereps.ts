@@ -663,9 +663,12 @@ try {
       }
       break;
     }
-    case 'health-read':
-      console.log(`added  ${health.readWeights(db, JSON.parse(readFileSync(args[0], 'utf8')), values.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone)}`);
+    case 'health-read': {
+      const samples = JSON.parse(readFileSync(args[0], 'utf8'));
+      if (!Array.isArray(samples) || !samples.every((s) => typeof s?.id === 'string' && !Number.isNaN(Date.parse(s.at)) && Number.isFinite(s.kg))) throw new Error('Expected a JSON array of { id, at, kg } samples.');
+      console.log(`added  ${health.readWeights(db, samples, values.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone)}`);
       break;
+    }
     default:
       console.error(usage);
       process.exit(2);

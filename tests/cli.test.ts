@@ -146,4 +146,6 @@ test('CLI health-read adds store weights to dates with none, once, without writi
   assert.equal(cli('health-read', samples, '--tz', 'Australia/Brisbane'), 'added  0');
   assert.match(cli('measurements'), /2026-10-08  80\.5 kg\n.*2026-10-09  79\.9 kg/s);
   assert.match(cli('health'), /^write  weight  \S+  2026-10-08  80\.5 kg$/);
+  writeFileSync(samples, JSON.stringify([{ id: 'c', at: 'yesterday', kg: 80 }]));
+  assert.throws(() => cli('health-read', samples), /Expected a JSON array/);
 });

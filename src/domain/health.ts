@@ -58,21 +58,23 @@ export const forgetHealth = (db: Db, read = false) => q.forgetHealthRecords(db, 
 
 // Each sample is considered once, so deleting an entry read from the store does not bring it back.
 // The earliest sample of a date is kept, and a date that already has a body weight keeps it.
+// An entry equal to a sample, such as one read before an export and import, counts as read so it is not written back.
 export const readWeights = (db: Db, samples: HealthWeight[], timeZone: string) =>
   transaction(db, () => {
     const seen = new Set(q.healthRecords(db).filter((r) => r.kind === 'read').map((r) => r.id as string));
-    const dates = new Set(bodyWeights(db).map((e) => e.date));
+    const dates = new Map(bodyWeights(db).map((e) => [e.date, e]));
     const unit = weightUnit(db);
     let added = 0;
     for (const s of [...samples].sort((a, b) => Date.parse(a.at) - Date.parse(b.at))) {
       if (seen.has(s.id)) continue;
       seen.add(s.id);
       const date = localDate(new Date(s.at), timeZone);
-      const value = convert(s.kg, 'kg', unit);
-      let entry = '';
-      if (!dates.has(date) && value > 0) {
-        dates.add(date);
+      const value = Math.round(convert(s.kg, 'kg', unit) * 10) / 10;
+      const existing = dates.get(date);
+      let entry = existing && Math.abs(kg({ weight: existing.value, unit: existing.unit }) - s.kg) < 0.05 ? existing.id : '';
+      if (!existing && value > 0) {
         entry = add(db, { preset: 'body-weight' }, value, date).id;
+        dates.set(date, { id: entry, date, value, unit });
         added++;
       }
       q.writeHealthRecord(db, s.id, 'read', entry);

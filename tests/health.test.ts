@@ -125,3 +125,17 @@ test('a weight read from the store stays deleted, is read in the weight unit, an
   eraseAll(db);
   assert.equal(readWeights(db, sample, zone), 1);
 });
+
+test('reading takes the earliest sample whatever the order, rounds it, and marks an equal entry as read', () => {
+  const db = openDb(':memory:');
+  logBodyWeight(db, 80, '2026-10-07');
+  markWritten(db, healthChanges(db).write);
+  const samples = [
+    { id: 'hc-2', at: '2026-10-08T22:30:00Z', kg: 80.4 },
+    { id: 'hc-1', at: '2026-10-08T21:30:00Z', kg: 72.57475 },
+    { id: 'hc-3', at: '2026-10-06T22:00:00Z', kg: 80 }, // 2026-10-07: the same weight, as after an export and import
+  ];
+  assert.equal(readWeights(db, samples, zone), 1);
+  assert.deepEqual(bodyWeights(db).map((e) => [e.date, e.value]).sort(), [['2026-10-07', 80], ['2026-10-09', 72.6]]);
+  assert.deepEqual(healthChanges(db), { write: [], remove: [{ id: bodyWeights(db).find((e) => e.date === '2026-10-07')!.id, kind: 'weight' }] });
+});
