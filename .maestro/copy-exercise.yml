@@ -66,3 +66,39 @@ name: Copy an exercise as a custom one
 - scrollUntilVisible:
     element: "Barbell Full Squat \\(copy\\)"
     direction: UP
+# A template exercise's copy is added right after it in the template.
+- runFlow: common/launch.yml
+- runFlow: common/bench-workout.yml
+- scrollUntilVisible:
+    element: Save as template
+- tapOn: Save as template
+- eraseText
+- inputText: Push A
+- hideKeyboard
+- tapOn: Save
+- back
+- scrollUntilVisible:
+    element: "Push A, .*"
+- tapOn: "Push A, .*"
+- scrollUntilVisible:
+    element: Edit
+- tapOn: Edit
+- scrollUntilVisible:
+    element: Copy Barbell Bench Press - Medium Grip as a custom exercise
+    centerElement: true
+- tapOn: Copy Barbell Bench Press - Medium Grip as a custom exercise
+- scrollUntilVisible:
+    element: "Barbell Bench Press - Medium Grip \\(copy\\)"
+    centerElement: true
+- scrollUntilVisible:
+    element: Add new exercise
+    centerElement: true
+- tapOn: Add new exercise
+- scrollUntilVisible:
+    element: Copy Barbell Bench Press - Medium Grip \(copy\) as a custom exercise
+    direction: UP
+    centerElement: true
+- assertVisible:
+    text: "Barbell Bench Press - Medium Grip \\(copy\\)"
+    below:
+      text: "Barbell Bench Press - Medium Grip"

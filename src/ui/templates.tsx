@@ -103,6 +103,8 @@ function TemplateSummary({ id, onStart, onEdit, onDelete }: { id: string; onStar
   );
 }
 
+const planned = (exerciseId: string): Plan['exercises'][number] => ({ exerciseId, name: '', mode: 'reps', exerciseNote: null, superset: null, sets: [{ type: 'normal', weight: 0, reps: 0, duration: null, distance: null, rounds: null, recovery: null, rest: null, targetRpe: null, options: null }] });
+
 function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => void; onDone: () => void }) {
   const c = useColors();
   const { units } = usePrototype();
@@ -342,7 +344,7 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
                   onFocus={() => setEdit(null)}
                   onCreate={(exerciseId) => {
                     setCopying(null);
-                    change((x) => x.splice(next > 0 ? next : x.length, 0, { exerciseId, name: '', mode: 'reps', exerciseNote: null, superset: null, sets: [{ type: 'normal', weight: 0, reps: 0, duration: null, distance: null, rounds: null, recovery: null, rest: null, targetRpe: null, options: null }] }));
+                    change((x) => x.splice(next > 0 ? next : x.length, 0, planned(exerciseId)));
                   }}
                 />
               </Animated.View>
@@ -359,7 +361,7 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
           exclude={plan.exercises.map((e) => e.exerciseId)}
           onFocus={() => setEdit(null)}
           onPick={(exerciseId) => {
-            change((x) => x.push({ exerciseId, name: '', mode: 'reps', exerciseNote: null, superset: null, sets: [{ type: 'normal', weight: 0, reps: 0, duration: null, distance: null, rounds: null, recovery: null, rest: null, targetRpe: null, options: null }] }));
+            change((x) => x.push(planned(exerciseId)));
             setAdding(false);
           }}
         />
