@@ -1,10 +1,9 @@
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import * as data from '@/domain/portability';
-import { applyImport, discardImport, pickImport } from '@/platform/data';
-import { db } from '@/platform/db';
+import { applyImport, discardImport, pickImport, previewImport } from '@/platform/data';
 
 import { dayLabel, parseDate, Row, Section } from './home';
 import { Page } from './measurements';
@@ -49,9 +48,26 @@ export function Import() {
   const [map, setMap] = useState<Record<string, string>>({});
   const [matching, setMatching] = useState<string | null>(null);
   const [shown, setShown] = useState(20);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<{ label: string; done: number; at: 'file' | 'import' } | null>(null);
+  const running = useRef(false);
   const applied = useRef(false);
+  const navigation = useNavigation();
   useEffect(() => discardImport, []);
+  // An unfinished import step holds a database transaction open, so the page stays until it ends.
+  useEffect(() => navigation.addListener('beforeRemove', (event) => running.current && event.preventDefault()), [navigation]);
+  const work = async <T,>(label: string, at: 'file' | 'import', job: (progress: (done: number) => void) => Promise<T>) => {
+    running.current = true;
+    setBusy({ label, done: 0, at });
+    setError(null);
+    try {
+      return await job((done) => setBusy({ label, done, at }));
+    } finally {
+      running.current = false;
+      setBusy(null);
+      // Reminders read during a step can see rows the step later rolled back.
+      remind();
+    }
+  };
   const [error, setError] = useState<string | null>(null);
   const button = { alignItems: 'center', borderRadius: radius.s, backgroundColor: c.raised, marginTop: space.l } as const;
   const preview = picked?.preview;
@@ -61,28 +77,41 @@ export function Import() {
       return { title, n };
     })
     .filter(({ n }) => n.new + n.duplicates + n.unchanged);
-  const latest = picked && data.importHighlights(picked.import);
-  const choose = (name: string, id: string) => {
-    if (!picked) return;
+  const latest = preview?.latest;
+  const choose = async (name: string, id: string) => {
+    if (!picked || running.current) return;
     const next = { ...map, [name]: id };
-    setMap(next);
     setMatching(null);
-    setPicked({ ...picked, preview: data.previewImport(db, picked.import, 'skip', {}, next) });
+    try {
+      const preview = await work('Checking', 'import', (progress) => previewImport(picked.import, next, progress));
+      setMap(next);
+      setPicked({ ...picked, preview });
+    } catch (e) {
+      setError(`Could not check the file: ${(e as Error).message}`);
+    }
   };
+  const progress = busy && (
+    <View accessible accessibilityRole="progressbar" accessibilityLabel={busy.label} accessibilityValue={{ min: 0, max: 100, now: Math.round(busy.done * 100) }} style={{ marginTop: space.l }}>
+      <Txt variant="meta" tone="muted">{busy.label}… {Math.round(busy.done * 100)}%</Txt>
+      <View style={{ height: space.s, borderRadius: radius.s, backgroundColor: c.raised, marginTop: space.s, overflow: 'hidden' }}>
+        <View style={{ width: `${busy.done * 100}%`, height: '100%', backgroundColor: c.accent }} />
+      </View>
+    </View>
+  );
   return (
     <Page title="Import data">
       <Txt variant="meta" tone="muted" style={{ marginTop: space.l }}>
         Choose a nicereps export (ZIP), a filled blank template (CSV), a Strong export (its workouts CSV or measurements ZIP), a Hevy export (its workout or measurement CSV), a FitNotes backup, or a StrengthLog export (CSV). Nothing is written until you tap Import.
       </Txt>
       <Tap
-        disabled={busy}
+        disabled={!!busy}
         onPress={async () => {
-          setBusy(true);
-          setError(null);
+          if (running.current) return;
           try {
-            const file = await pickImport();
+            const file = await work('Reading', 'file', pickImport);
             if (file) {
-              setPicked({ ...file, preview: data.previewImport(db, file.import) });
+              const preview = await work('Checking', 'file', (progress) => previewImport(file.import, {}, progress));
+              setPicked({ ...file, preview });
               setAction('skip');
               setOverrides({});
               setMap({});
@@ -93,12 +122,12 @@ export function Import() {
             setPicked(null);
             setError(`Could not read the file: ${(e as Error).message}`);
           }
-          setBusy(false);
         }}
         style={button}
       >
-        <Txt variant="label">{busy ? 'Reading…' : picked ? 'Choose another file' : 'Choose file'}</Txt>
+        <Txt variant="label" tone={busy ? 'muted' : 'text'}>{picked ? 'Choose another file' : 'Choose file'}</Txt>
       </Tap>
+      {busy?.at === 'file' && progress}
       {error && <Txt variant="meta" accessibilityLiveRegion="polite" style={{ marginTop: space.s }}>{error}</Txt>}
       {picked && preview && (
         <>
@@ -124,13 +153,13 @@ export function Import() {
           {!preview.errors.length && (
             <>
               {preview.exercises.length > 0 && (
-                <Section title="Exercises" aside={preview.unmatched.length ? `${preview.unmatched.length} to match` : undefined}>
-                  <Txt variant="meta" tone="muted">Each name from the file needs a nicereps exercise. Tap a name to change it. Your choices are remembered for the next import.</Txt>
+                <Section title="Exercises" aside={preview.unmatched.length ? `${preview.unmatched.length} skipped` : undefined}>
+                  <Txt variant="meta" tone="muted">Names without a nicereps exercise are skipped with their sets. Tap a name to change it. Your matches are remembered for the next import.</Txt>
                   {preview.exercises.map((e) => (
                     <View key={e.name}>
                       <Row
                         title={e.name}
-                        meta={e.id === 'new' ? 'New custom exercise' : e.exercise ? `${e.exercise}${e.saved ? ' · remembered' : ''}` : 'Not matched'}
+                        meta={e.id === 'new' ? 'New custom exercise' : e.exercise ? `${e.exercise}${e.saved ? ' · remembered' : ''}` : e.id === 'skip' ? 'Skipped' : 'No match · skipped'}
                         expanded={matching === e.name}
                         onPress={() => setMatching(matching === e.name ? null : e.name)}
                       />
@@ -139,6 +168,11 @@ export function Import() {
                           <Tap onPress={() => choose(e.name, 'new')} style={[button, { padding: space.m }]}>
                             <Txt variant="label">Create {e.name} as a custom exercise</Txt>
                           </Tap>
+                          {e.id !== 'skip' && (
+                            <Tap onPress={() => choose(e.name, 'skip')} style={[button, { padding: space.m }]}>
+                              <Txt variant="label">Skip {e.name}</Txt>
+                            </Tap>
+                          )}
                           <ExercisePicker exclude={[]} create={false} onPick={(id) => choose(e.name, id)} />
                         </>
                       )}
@@ -168,29 +202,27 @@ export function Import() {
                   )}
                 </Section>
               )}
-              {preview.unmatched.length > 0 && (
-                <Txt variant="meta" tone="muted" style={{ marginTop: space.l }}>
-                  Match every exercise to import.
-                </Txt>
+              {busy?.at === 'import' ? (
+                progress
+              ) : (
+                <Tap
+                  disabled={!!busy}
+                  onPress={async () => {
+                    if (applied.current || running.current) return;
+                    try {
+                      await work('Importing', 'import', (progress) => applyImport(picked.import, action, overrides, map, progress));
+                    } catch (e) {
+                      return setError((e as Error).message);
+                    }
+                    applied.current = true;
+                    router.dismissTo('/');
+                    reset();
+                  }}
+                  style={[button, { backgroundColor: c.accent }]}
+                >
+                  <Txt variant="label" tone="onAccent">Import</Txt>
+                </Tap>
               )}
-              <Tap
-                disabled={busy || preview.unmatched.length > 0}
-                onPress={() => {
-                  if (applied.current) return;
-                  try {
-                    applyImport(picked.import, action, overrides, map);
-                  } catch (e) {
-                    return setError((e as Error).message);
-                  }
-                  applied.current = true;
-                  remind();
-                  router.dismissTo('/');
-                  reset();
-                }}
-                style={[button, { backgroundColor: preview.unmatched.length ? c.raised : c.accent }]}
-              >
-                <Txt variant="label" tone={preview.unmatched.length ? 'muted' : 'onAccent'}>Import</Txt>
-              </Tap>
             </>
           )}
         </>

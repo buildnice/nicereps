@@ -17,6 +17,27 @@ import { scheduleTimer } from './notifications';
 const exportDir = new Directory(Paths.cache, 'export');
 const importDir = new Directory(Paths.cache, 'import');
 
+// Import steps hold a transaction across yields, so imports, exports and backups take turns.
+let queue: Promise<unknown> = Promise.resolve();
+const inTurn = <T>(job: () => Promise<T>) => {
+  const next = queue.then(job);
+  queue = next.catch(() => {});
+  return next;
+};
+
+const steps = <T>(run: () => Generator<number, T>, progress: (done: number) => void) =>
+  inTurn(async () => {
+    const steps = run();
+    let shown = Date.now();
+    for (let step = steps.next(); ; step = steps.next()) {
+      if (step.done) return step.value;
+      if (Date.now() - shown < 50) continue;
+      progress(step.value);
+      await new Promise((resolve) => setTimeout(resolve));
+      shown = Date.now();
+    }
+  });
+
 const writeArchive = async (file: File) => {
   if (!exportDir.exists) exportDir.create();
   if (file.exists) file.delete();
@@ -48,14 +69,16 @@ export const exportData = async () => {
     throw e;
   }
   const file = new File(exportDir, `nicereps-${localDate(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone)}.zip`);
-  try {
-    const { missing } = await writeArchive(file);
-    await file.copy(folder, { overwrite: true });
-    writeSetting('exportedAt', new Date().toISOString());
-    return { name: file.name, folder: folderName(folder), missing };
-  } finally {
-    if (file.exists) file.delete();
-  }
+  return inTurn(async () => {
+    try {
+      const { missing } = await writeArchive(file);
+      await file.copy(folder, { overwrite: true });
+      writeSetting('exportedAt', new Date().toISOString());
+      return { name: file.name, folder: folderName(folder), missing };
+    } finally {
+      if (file.exists) file.delete();
+    }
+  });
 };
 
 const backupName = 'nicereps-backup.zip';
@@ -85,8 +108,7 @@ const writeBackup = async () => {
   }
 };
 
-let backups = Promise.resolve();
-export const backup = () => (backups = backups.then(writeBackup).catch(() => {}));
+export const backup = () => inTurn(writeBackup);
 
 export const chooseBackupFolder = async () => {
   if (Platform.OS === 'ios') writeSetting('backupFolder', 'documents');
@@ -124,7 +146,7 @@ export const shareTemplate = async () => {
   await Sharing.shareAsync(file.uri, { mimeType: 'text/csv', UTI: 'public.comma-separated-values-text', dialogTitle: 'Blank nicereps CSV template' });
 };
 
-export const pickImport = async () => {
+export const pickImport = async (progress: (done: number) => void) => {
   const picked = await File.pickFileAsync();
   if (picked.canceled) return null;
   if (importDir.exists) importDir.delete();
@@ -135,7 +157,7 @@ export const pickImport = async () => {
   let source: DB | undefined;
   let imp: data.Import;
   try {
-    imp = data.readImport(
+    imp = await steps(() => data.readImportSteps(
       db,
       (function* () {
         for (let chunk = handle.readBytes(1 << 20); chunk.length; chunk = handle.readBytes(1 << 20)) yield chunk;
@@ -160,7 +182,7 @@ export const pickImport = async () => {
           run: (sql, params) => void file.executeSync(sql, params),
         };
       },
-    );
+    ), progress);
   } finally {
     handle.close();
     source?.close();
@@ -174,8 +196,11 @@ export const discardImport = () => {
   if (importDir.exists) importDir.delete();
 };
 
-export const applyImport = (imp: data.Import, action: data.Action, overrides: Record<string, data.Action>, map: Record<string, string>) => {
-  const preview = data.applyImport(db, imp, action, overrides, map);
+export const previewImport = (imp: data.Import, map: Record<string, string>, progress: (done: number) => void) =>
+  steps(() => data.previewImportSteps(db, imp, 'skip', {}, map), progress);
+
+export const applyImport = async (imp: data.Import, action: data.Action, overrides: Record<string, data.Action>, map: Record<string, string>, progress: (done: number) => void) => {
+  const preview = await steps(() => data.applyImportSteps(db, imp, action, overrides, map), progress);
   photoDir.create({ idempotent: true });
   for (const { file } of db.all('SELECT file FROM photo')) {
     const staged = new File(importDir, file as string);

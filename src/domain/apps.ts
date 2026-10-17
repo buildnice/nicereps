@@ -1,5 +1,7 @@
 import { createId } from '@paralleldrive/cuid2';
 
+import { aliases } from '../../assets/catalog/aliases.ts';
+
 import type { Db, Row, Value } from '../data/db.ts';
 import { presets, type Kind } from './measurements.ts';
 import type { Import, Parsed } from './portability.ts';
@@ -7,6 +9,17 @@ import { isDate, localDate, zoned } from './rules.ts';
 import { weightUnit } from './workouts.ts';
 
 export type Found = { name: string; mode: 'reps' | 'duration' | 'distance' };
+
+export function* each<T>(items: T[], fn: (item: T, i: number) => void, done = 0, total = items.length) {
+  for (let i = 0; i < items.length; i++) {
+    fn(items[i], i);
+    if (i % 100 === 99) yield (done + i + 1) / total;
+  }
+}
+
+export const drain = <T>(steps: Generator<number, T>) => {
+  for (let step = steps.next(); ; step = steps.next()) if (step.done) return step.value;
+};
 
 const key = (name: string) =>
   [
@@ -30,7 +43,8 @@ export const matchExercises = (db: Db, app: string, names: string[]) => {
   return Object.fromEntries(
     names.map((n) => {
       const saved = db.all('SELECT exercise_id FROM app_exercise WHERE app = ? AND name = ?', [app, n])[0]?.exercise_id as string | undefined;
-      return [n, { id: saved ?? exact.get(n.toLowerCase()) ?? loose.get(key(n)) ?? null, saved: !!saved }];
+      const alias = aliases[n.toLowerCase()] && (db.all('SELECT id FROM exercise WHERE source = ?', [aliases[n.toLowerCase()]])[0]?.id as string | undefined);
+      return [n, { id: saved ?? alias ?? exact.get(n.toLowerCase()) ?? loose.get(key(n)) ?? null, saved: !!saved }];
     }),
   );
 };
@@ -49,19 +63,37 @@ export const resolveExercises = (db: Db, imp: Import, map: Record<string, string
   const errors: string[] = [];
   for (const e of imp.exercises) {
     const choice = map[e.name] ?? matched[e.name].id;
-    if (!choice) unmatched.push(e.name);
+    if (!choice || choice === 'skip') {
+      unmatched.push(e.name);
+      continue;
+    }
     if (choice === 'new' && db.all('SELECT 1 FROM exercise WHERE name = ? COLLATE NOCASE', [e.name]).length) errors.push(`An exercise named ${e.name} already exists; match it instead`);
-    if (choice && choice !== 'new') ids.set(e.name, choice);
+    if (choice !== 'new') ids.set(e.name, choice);
     else {
       const id = createId();
       ids.set(e.name, id);
       created.rows.push({ at: e.name, cells: [id, e.name, e.mode] });
     }
   }
+  // Skipped names drop their sets, and a workout left with no exercises.
+  const all = imp.tables.find((p) => p.table === 'workout_exercise')?.rows ?? [];
+  const kept = all.filter(({ cells }) => ids.has(cells[2]!));
+  const keptIds = new Set(kept.map(({ cells }) => cells[0]));
+  const live = new Set(kept.map(({ cells }) => cells[1]));
+  const emptied = new Set(all.map(({ cells }) => cells[1]).filter((w) => !live.has(w)));
+  const positions = new Map<string | null, number>();
+  const supersets = new Map<string | null, number>();
+  for (const { cells } of kept) supersets.set(cells[5], (supersets.get(cells[5]) ?? 0) + 1);
   const muscles = table('workout_exercise_muscle', ['workout_exercise_id', 'muscle', 'role']);
   const tables = imp.tables.map((p) => {
+    if (p.table === 'workout') return { ...p, rows: p.rows.filter(({ cells }) => !emptied.has(cells[0])) };
+    if (p.table === 'workout_set') return { ...p, rows: p.rows.filter(({ cells }) => keptIds.has(cells[1])) };
     if (p.table !== 'workout_exercise') return p;
-    const rows = p.rows.map(({ at, cells }) => ({ at, cells: [cells[0], cells[1], ids.get(cells[2]!)!, ...cells.slice(3)] }));
+    const rows = kept.map(({ at, cells }) => {
+      const position = positions.get(cells[1]) ?? 0;
+      positions.set(cells[1], position + 1);
+      return { at, cells: [cells[0], cells[1], ids.get(cells[2]!)!, String(position), cells[4], supersets.get(cells[5])! > 1 ? cells[5] : null] };
+    });
     for (const { at, cells } of rows)
       for (const m of db.all('SELECT muscle, role FROM exercise_muscle WHERE exercise_id = ?', [cells[2]])) muscles.rows.push({ at, cells: [cells[0], m.muscle as string, m.role as string] });
     return { ...p, rows };
@@ -71,7 +103,7 @@ export const resolveExercises = (db: Db, imp: Import, map: Record<string, string
     imp: { ...imp, tables: [created, ...tables.slice(0, at + 1), muscles, ...tables.slice(at + 1)] },
     exercises: imp.exercises.map((e): Match => {
       const id = map[e.name] ?? matched[e.name].id;
-      return { name: e.name, id, exercise: (id && db.all('SELECT name FROM exercise WHERE id = ?', [id])[0]?.name as string) || null, saved: !map[e.name] && matched[e.name].saved };
+      return { name: e.name, id, exercise: (id && id !== 'skip' && db.all('SELECT name FROM exercise WHERE id = ?', [id])[0]?.name as string) || null, saved: !map[e.name] && matched[e.name].saved };
     }),
     unmatched,
     errors,
@@ -140,7 +172,7 @@ const sessions = (db: Db, timeZone: string) => {
 
 const nonNegative = (numbers: Record<string, number | null>) => Object.entries(numbers).map(([c, n]) => n !== null && !(Number.isFinite(n) && n >= 0) && `${c} must be a non-negative number`);
 
-export const fromStrong = (db: Db, [header, ...lines]: (string | null)[][], timeZone: string, errors: string[]): Pick<Import, 'tables' | 'exercises'> => {
+export function* fromStrong(db: Db, [header, ...lines]: (string | null)[][], timeZone: string, errors: string[]): Generator<number, Pick<Import, 'tables' | 'exercises'>> {
   const unit = (label: string, units: object) => header.map((c) => new RegExp(`^${label} \\((\\w+)\\)$`).exec(c ?? '')?.[1]).find((u) => u && u in units);
   const weightUnit = unit('Weight', weights);
   const distanceUnit = unit('Distance', distances);
@@ -150,7 +182,7 @@ export const fromStrong = (db: Db, [header, ...lines]: (string | null)[][], time
   const distanceColumn = `Distance (${distanceUnit})`;
   const [distanceTo, distanceDivisor] = distances[distanceUnit!];
   const out = sessions(db, timeZone);
-  lines.forEach((cells, i) => {
+  yield* each(lines, (cells, i) => {
     const at = `Strong line ${i + 2}`;
     const col = (c: string) => cells[header.indexOf(c)] || null;
     const date = col('Date');
@@ -185,7 +217,7 @@ export const fromStrong = (db: Db, [header, ...lines]: (string | null)[][], time
     });
   });
   return out.done();
-};
+}
 
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const hevyStamp = (v: string | null) => {
@@ -198,14 +230,14 @@ const hevyTypes: Record<string, string> = { warmup: 'warm-up', normal: 'normal',
 
 export const isHevy = (header: (string | null)[]) => header.includes('exercise_title') && header.includes('set_type');
 
-export const fromHevy = (db: Db, [header, ...lines]: (string | null)[][], timeZone: string, errors: string[]): Pick<Import, 'tables' | 'exercises'> => {
+export function* fromHevy(db: Db, [header, ...lines]: (string | null)[][], timeZone: string, errors: string[]): Generator<number, Pick<Import, 'tables' | 'exercises'>> {
   const weightColumn = ['weight_kg', 'weight_lbs'].find((c) => header.includes(c));
   const distanceColumn = ['distance_km', 'distance_miles'].find((c) => header.includes(c));
   const missing = [...hevyColumns.filter((c) => !header.includes(c)), !weightColumn && 'weight_kg or weight_lbs', !distanceColumn && 'distance_km or distance_miles'].filter(Boolean);
   if (missing.length) return errors.push(`This Hevy export is missing the columns ${missing.join(', ')}`), { tables: [] };
   const out = sessions(db, timeZone);
   let last: { w: object; name: string; index: number; block: number } | undefined;
-  lines.forEach((cells, i) => {
+  yield* each(lines, (cells, i) => {
     const at = `Hevy line ${i + 2}`;
     const col = (c: string) => cells[header.indexOf(c)] || null;
     const start = hevyStamp(col('start_time'));
@@ -243,7 +275,7 @@ export const fromHevy = (db: Db, [header, ...lines]: (string | null)[][], timeZo
     });
   });
   return out.done();
-};
+}
 
 const strengthLogColumns = ['workout', 'start', 'end', 'exercise', 'specialset', 'weight', 'extraWeight', 'assistingWeight', 'distanceKM', 'reps', 'time', 'warmup', 'setComment', 'workoutComment'];
 const flags = ['warmup', 'max', 'fail'];
@@ -251,13 +283,13 @@ const epoch = (n: number | null) => Number.isInteger(n) && !isNaN(new Date(n!).g
 
 export const isStrengthLog = (header: (string | null)[]) => header.includes('specialset') && header.includes('workoutComment');
 
-export const fromStrengthLog = (db: Db, [header, ...lines]: (string | null)[][], timeZone: string, errors: string[]): Pick<Import, 'tables' | 'exercises' | 'notes'> => {
+export function* fromStrengthLog(db: Db, [header, ...lines]: (string | null)[][], timeZone: string, errors: string[]): Generator<number, Pick<Import, 'tables' | 'exercises' | 'notes'>> {
   const missing = strengthLogColumns.filter((c) => !header.includes(c));
   if (missing.length) return errors.push(`This StrengthLog export is missing the columns ${missing.join(', ')}`), { tables: [] };
   const unit = weightUnit(db);
   const out = sessions(db, timeZone);
   let last: { w: object; name: string; superset: boolean; block: number; run: number } | undefined;
-  lines.forEach((cells, i) => {
+  yield* each(lines, (cells, i) => {
     const at = `StrengthLog line ${i + 2}`;
     const col = (c: string) => cells[header.indexOf(c)] || null;
     const name = col('workout');
@@ -300,7 +332,7 @@ export const fromStrengthLog = (db: Db, [header, ...lines]: (string | null)[][],
     });
   });
   return { ...out.done(), notes: [`Weights are read as ${unit}, the weight unit in Settings: StrengthLog's export does not say which unit it used`] };
-};
+}
 
 export const isStrongMeasurements = (files: Record<string, string>) => {
   const names = Object.keys(files);
@@ -390,7 +422,7 @@ const hundredths = (n: number) => String(Math.round(n * 100) / 100);
 
 export const isFitNotes = (file: Db) => file.all("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'training_log'").length > 0;
 
-export const fromFitNotes = (db: Db, file: Db, timeZone: string, errors: string[]): Pick<Import, 'tables' | 'exercises' | 'skipped'> => {
+export function* fromFitNotes(db: Db, file: Db, timeZone: string, errors: string[]): Generator<number, Pick<Import, 'tables' | 'exercises' | 'skipped'>> {
   const metric = file.all('SELECT metric FROM settings')[0]?.metric !== 0;
   const times = new Map(file.all('SELECT workout_date, start_date_time, end_date_time FROM WorkoutTime ORDER BY start_date_time DESC').map((t) => [t.workout_date, t]));
   const notes = new Map<Value, string>();
@@ -408,7 +440,8 @@ export const fromFitNotes = (db: Db, file: Db, timeZone: string, errors: string[
     names.set(s.date, list);
   }
   const out = sessions(db, timeZone);
-  for (const s of sets) {
+  for (const [i, s] of sets.entries()) {
+    if (i % 100 === 99) yield i / sets.length;
     const at = `FitNotes set ${s._id}`;
     const date = String(s.date);
     const time = times.get(s.date);
@@ -457,4 +490,4 @@ export const fromFitNotes = (db: Db, file: Db, timeZone: string, errors: string[
   const workouts = out.done();
   const measured = toMeasurements(db, [...series.values()], errors);
   return { tables: [...workouts.tables, ...measured.tables], exercises: workouts.exercises, skipped: measured.skipped };
-};
+}
