@@ -111,7 +111,7 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
   const [name, setName] = useState(plan.name);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [copying, setCopying] = useState<number | null>(null);
+  const [copying, setCopying] = useState<string | null>(null);
   const [edit, setEdit] = useState<Edit | null>(null);
   const [shown, setShown] = useState(edit);
   if (edit && edit !== shown) setShown(edit);
@@ -327,16 +327,17 @@ function TemplateEditor({ id, onChange, onDone }: { id: string; onChange: () => 
               </Tap>
               <Tap
                 accessibilityLabel={`Copy ${e.name} as a custom exercise`}
-                accessibilityState={{ expanded: copying === i }}
-                onPress={() => setCopying(copying === i ? null : i)}
+                accessibilityState={{ expanded: copying === e.exerciseId }}
+                onPress={() => setCopying(copying === e.exerciseId ? null : e.exerciseId)}
                 style={[styles.action, styles.dashed, { borderColor: c.line }]}
               >
                 <Txt variant="label" tone="muted">Copy as custom</Txt>
               </Tap>
             </View>
-            {copying === i && (
+            {copying === e.exerciseId && (
               <Animated.View entering={FadeIn.duration(160)}>
                 <NewExercise
+                  key={e.exerciseId}
                   from={e.exerciseId}
                   onFocus={() => setEdit(null)}
                   onCreate={(exerciseId) => {

@@ -9,7 +9,7 @@ import { openDb } from '../cli/db.ts';
 import { seed } from '../cli/fixtures.ts';
 import { exerciseId } from '../src/data/queries.ts';
 import { migrations } from '../src/data/schema.ts';
-import { pace } from '../src/domain/rules.ts';
+import { pace, supersetBlocks } from '../src/domain/rules.ts';
 import * as ops from '../src/domain/workouts.ts';
 
 const setup = () => {
@@ -376,4 +376,21 @@ test('a custom exercise copies an existing one, equipment, bar and note included
   const hold = ops.createExercise(db, 'Bench Hold', [], { ...draft, mode: 'duration', equipment: '  ' });
   assert.deepEqual([ops.exerciseDraft(db, hold).bar, ops.exerciseDraft(db, hold).equipment], [null, null], 'only weight × reps keeps a bar');
   assert.throws(() => ops.createExercise(db, 'Bad Bar', [], { bar: 0, barUnit: 'kg' }), /Bar weight/);
+});
+
+test('an exercise added after another lands after its superset block, in the order shown', () => {
+  const { db, id } = setup();
+  const w = ops.startWorkout(db, {});
+  const [a, b, c] = ['Bench Press', 'Plank', 'Run'].map((name) => ops.addExercise(db, w, id(name)));
+  ops.linkSuperset(db, a, b);
+  ops.linkSuperset(db, b, c);
+  ops.unlinkSuperset(db, b);
+  const names = () => ops.getWorkout(db, w).exercises.map((e) => e.name);
+  const shown = () => supersetBlocks(ops.getWorkout(db, w).exercises).flat().map((e) => e.name);
+  assert.deepEqual(shown(), ['Bench Press', 'Run', 'Plank']);
+  ops.addExercise(db, w, id('Bike Sprints'), a);
+  assert.deepEqual(names(), ['Bench Press', 'Run', 'Bike Sprints', 'Plank']);
+  ops.addExercise(db, w, id('Mobility Flow'), b);
+  assert.deepEqual(names(), ['Bench Press', 'Run', 'Bike Sprints', 'Plank', 'Mobility Flow']);
+  assert.throws(() => ops.addExercise(db, w, id('Bench Press'), 'missing'), /Not found/);
 });

@@ -293,7 +293,7 @@ try {
       break;
     }
     case 'exercises':
-      ops.listExercises(db, args.join(' ')).forEach((e) => console.log(`${e.id}  ${e.name}  ${e.mode}${e.source ? '' : '  custom'}`));
+      ops.listExercises(db, args.join(' ')).forEach((e) => console.log(`${e.id}  ${e.name}  ${e.mode}${e.equipment ? `  ${e.equipment}` : ''}${e.source ? '' : '  custom'}`));
       break;
     case 'default-map':
       ops.setDefaultMapping(db, exerciseId(db, args[0]), mapping(args[1], args[2]));

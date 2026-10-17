@@ -308,12 +308,11 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     };
   }, [deleted]);
 
-  const addExercise = (exerciseId: string, at?: number) => {
+  const addExercise = (exerciseId: string, after?: string) => {
     let added = '';
     run(() => {
-      added = ops.addExercise(db, id, exerciseId);
+      added = ops.addExercise(db, id, exerciseId, after);
       ops.addSet(db, added);
-      if (at !== undefined) ops.moveExercise(db, added, at);
     });
     show(added);
     setAdding(false);
@@ -538,7 +537,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                       onFocus={() => setEdit(null)}
                       onCreate={(created) => {
                         setCopying(null);
-                        addExercise(created, next ? exercises.indexOf(next) : exercises.length);
+                        addExercise(created, exercise.id);
                       }}
                     />
                   </Animated.View>
@@ -700,7 +699,7 @@ export function ExercisePicker({ exclude, onPick, onFocus, create = true }: { ex
   const c = useColors();
   const [query, setQuery] = useState('');
   const [copying, setCopying] = useState(false);
-  const [from, setFrom] = useState<string>();
+  const [from, setFrom] = useState<{ id: string; name: string }>();
   const found = ops.listExercises(db, query, 51 + exclude.length).filter((x) => copying || !exclude.includes(x.id));
 
   return (
@@ -724,7 +723,7 @@ export function ExercisePicker({ exclude, onPick, onFocus, create = true }: { ex
             title={x.name}
             meta={[modeNames[x.mode], equipment(x.source, x.equipment) ?? (x.source && 'catalog'), !x.source && 'custom'].filter(Boolean).join(' · ')}
             icon={copying ? CopyIcon : PlusIcon}
-            onPress={() => (copying ? (setFrom(x.id), setCopying(false)) : onPick(x.id))}
+            onPress={() => (copying ? (setFrom(x), setCopying(false)) : onPick(x.id))}
           />
         ))}
       {(found.length > 50 || !found.length) && (
@@ -736,20 +735,20 @@ export function ExercisePicker({ exclude, onPick, onFocus, create = true }: { ex
         <>
           <Txt variant="caps" tone="muted" style={{ marginTop: space.l }}>New exercise</Txt>
           <Tap
-            accessibilityLabel={`Start from ${from ? ops.exerciseDraft(db, from).name : 'nothing'}, change`}
-            accessibilityState={{ selected: copying }}
+            accessibilityLabel={`Start from ${from?.name ?? 'Blank'}, change`}
+            accessibilityState={{ expanded: copying }}
             onPress={() => setCopying(!copying)}
             style={[styles.bar, { backgroundColor: c.raised, marginBottom: space.xs }, copying && { borderWidth: 2, borderColor: c.text }]}
           >
             <Txt variant="label">Start from</Txt>
-            <Txt variant="meta" tone="muted">{from ? ops.exerciseDraft(db, from).name : 'Blank'}</Txt>
+            <Txt variant="meta" tone="muted">{from?.name ?? 'Blank'}</Txt>
           </Tap>
           {from && (
             <Tap onPress={() => setFrom(undefined)} style={{ alignSelf: 'flex-start', marginBottom: space.xs }}>
               <Txt variant="meta" tone="muted">Start blank</Txt>
             </Tap>
           )}
-          <NewExercise key={from} from={from} onFocus={onFocus} onCreate={onPick} />
+          <NewExercise key={from?.id} from={from?.id} onFocus={onFocus} onCreate={onPick} />
         </>
       )}
     </Animated.View>

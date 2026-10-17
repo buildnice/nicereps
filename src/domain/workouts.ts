@@ -229,10 +229,17 @@ export const startWorkout = (
     return id;
   });
 
-export const addExercise = (db: Db, workoutId: string, exerciseId: string) =>
+export const addExercise = (db: Db, workoutId: string, exerciseId: string, after?: string) =>
   transaction(db, () => {
     const id = createId();
     q.insertWorkoutExercise(db, id, workoutId, exerciseId);
+    if (after) {
+      const blocks = supersetBlocks(q.workouts(db, 'id = ?', [workoutId])[0].exercises).map((b) => b.map((e) => e.id)).filter((b) => b[0] !== id);
+      const at = blocks.findIndex((b) => b.includes(after));
+      if (at < 0) throw new Error(`Not found: ${after}`);
+      blocks.splice(at + 1, 0, [id]);
+      q.renumber(db, 'workout_exercise', blocks.flat());
+    }
     return id;
   });
 
