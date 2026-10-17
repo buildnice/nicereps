@@ -28,7 +28,10 @@
         "monochromeImage": "./assets/monochrome-icon.png"
       },
       "permissions": [
-        "android.permission.SCHEDULE_EXACT_ALARM"
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.health.WRITE_EXERCISE",
+        "android.permission.health.WRITE_WEIGHT",
+        "android.permission.health.READ_WEIGHT"
       ],
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
@@ -111,12 +114,22 @@
         }
       ],
       "expo-widgets",
+      "./plugins/health-connect",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthUpdateUsageDescription": "nicereps writes your finished workouts and body weight to Apple Health when you turn it on in Settings.",
+          "NSHealthShareUsageDescription": "nicereps reads body weight from Apple Health when you turn on Read body weight in Settings.",
+          "background": false
+        }
+      ],
       [
         "expo-build-properties",
         {
           "android": {
             "enableMinifyInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "minSdkVersion": 26
           }
         }
       ]

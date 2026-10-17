@@ -20,6 +20,7 @@ test('fresh database migrates to the latest version', () => {
     'app_exercise',
     'exercise',
     'exercise_muscle',
+    'health_record',
     'measurement',
     'measurement_series',
     'photo',

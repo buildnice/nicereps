@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
 const file = join(mkdtempSync(join(tmpdir(), 'nicereps-')), 'cli.sqlite');
-const cli = (...args: string[]) =>
-  execFileSync(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', '--disable-warning=ExperimentalWarning', 'cli/nicereps.ts', file, ...args], { encoding: 'utf8' }).trim();
+const run = (db: string, ...args: string[]) =>
+  execFileSync(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', '--disable-warning=ExperimentalWarning', 'cli/nicereps.ts', db, ...args], { encoding: 'utf8' }).trim();
+const cli = (...args: string[]) => run(file, ...args);
 
 test('CLI operations persist across processes', () => {
   cli('seed');
@@ -120,4 +121,31 @@ test('CLI prs shows a PR gain since the first workout in its trend, and an equal
   const prs = cli('prs');
   assert.match(prs, /Tie Lift +weight 42\.5 kg × 2 +\+2\.5 kg since 2026-08-01\n/);
   assert.match(prs, /Tie Lift +e1RM 45\.3 kg +no change since 2026-08-01(\n|$)/);
+});
+
+test('CLI health lists pending writes and removals until marked', () => {
+  const own = join(mkdtempSync(join(tmpdir(), 'nicereps-')), 'health.sqlite');
+  const cli = (...args: string[]) => run(own, ...args);
+  const workout = cli('start', '--at', '2026-10-10T07:00:00+10:00', '--tz', 'Australia/Brisbane');
+  cli('finish', workout);
+  assert.match(cli('health'), new RegExp(`^write  workout  ${workout}  Workout  2026-10-09T21:00:00\\.000Z  `, 'm'));
+  cli('health', '--mark');
+  assert.equal(cli('health'), '');
+  cli('delete', workout);
+  assert.equal(cli('health', '--mark'), `remove  workout  ${workout}`);
+  assert.equal(cli('health'), '');
+});
+
+test('CLI health-read adds store weights to dates with none, once, without writing them back', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'nicereps-'));
+  const cli = (...args: string[]) => run(join(dir, 'read.sqlite'), ...args);
+  const samples = join(dir, 'samples.json');
+  writeFileSync(samples, JSON.stringify([{ id: 'a', at: '2026-10-08T21:30:00Z', kg: 79.9 }, { id: 'b', at: '2026-10-07T21:30:00Z', kg: 81 }]));
+  cli('measure', 'body-weight', '80.5', '--date', '2026-10-08');
+  assert.equal(cli('health-read', samples, '--tz', 'Australia/Brisbane'), 'added  1');
+  assert.equal(cli('health-read', samples, '--tz', 'Australia/Brisbane'), 'added  0');
+  assert.match(cli('measurements'), /2026-10-08  80\.5 kg\n.*2026-10-09  79\.9 kg/s);
+  assert.match(cli('health'), /^write  weight  \S+  2026-10-08  80\.5 kg$/);
+  writeFileSync(samples, JSON.stringify([{ id: 'c', at: '2026-10-09T21:30:00Z', kg: -1 }]));
+  assert.throws(() => cli('health-read', samples), /Expected a JSON array/);
 });

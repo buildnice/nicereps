@@ -88,7 +88,7 @@ const unitOf = (db: Db, seriesId: string) => {
   return q.readSetting(db, `${kind}Unit`) ?? units[kind];
 };
 
-const add = (db: Db, series: Target, value: number, date: string) => {
+export const add = (db: Db, series: Target, value: number, date: string) => {
   check(value, date);
   const seriesId = 'preset' in series ? track(db, series.preset) : 'custom' in series ? create(db, series.custom) : series.id;
   const id = createId();
@@ -108,7 +108,7 @@ export const editMeasurement = (db: Db, id: string, value: number | undefined, d
   q.updateMeasurement(db, id, value ?? (entry.value as number), value === undefined ? (entry.unit as string) : unitOf(db, entry.series_id as string), date);
 };
 
-const bodyWeights = (db: Db) => {
+export const bodyWeights = (db: Db) => {
   const series = q.measurementSeries(db).find((s) => s.preset === 'body-weight');
   return q.measurements(db).filter((e) => e.series_id === series?.id).map((e) => ({ id: e.id as string, date: e.date as string, value: e.value as number, unit: e.unit as WeightUnit }));
 };

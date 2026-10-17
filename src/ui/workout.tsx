@@ -22,6 +22,7 @@ import * as measures from '@/domain/measurements';
 import { loadPlates, type Kit } from '@/domain/plates';
 import * as ops from '@/domain/workouts';
 import { backup } from '@/platform/data';
+import { syncHealth } from '@/platform/health';
 import { db, readSetting } from '@/platform/db';
 import { alerts, scheduleTimer, VIBRATION, type Timer } from '@/platform/notifications';
 
@@ -329,6 +330,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     onExit();
     router.push({ pathname: '/workout/[id]', params: { id, from: 'Home' } });
     backup();
+    void syncHealth();
   };
 
   const discard = () => {

@@ -3,16 +3,17 @@ import { strFromU8, strToU8, Unzip, UnzipInflate, Zip, ZipDeflate, ZipPassThroug
 
 import { transaction, type Db, type Row, type Value } from '../data/db.ts';
 import { migrations, seedCatalog } from '../data/schema.ts';
+import { forgetHealth } from './health.ts';
 import { photoName } from './measurements.ts';
 import { isDate, localDate, optionalFields } from './rules.ts';
 import { badSetting } from './workouts.ts';
 import { fromFitNotes, fromHevy, fromHevyMeasurements, fromStrengthLog, fromStrong, fromStrongMeasurements, isFitNotes, isHevy, isHevyMeasurements, isStrengthLog, isStrong, isStrongMeasurements, resolveExercises, type Found, type Match } from './apps.ts';
 
-const deviceSettings = new Set(['backupFolder', 'backupAt', 'backupError', 'backupDismissedAt', 'exportedAt']);
+const deviceSettings = new Set(['backupFolder', 'backupAt', 'backupError', 'backupDismissedAt', 'exportedAt', 'health', 'healthAt', 'healthError', 'healthRead', 'healthReadAt', 'healthReadError']);
 
 export const format = { name: 'nicereps', version: 1 };
 
-const tables = (db: Db) => db.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'app_exercise' ORDER BY rowid").map((t) => t.name as string);
+const tables = (db: Db) => db.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('app_exercise', 'health_record') ORDER BY rowid").map((t) => t.name as string);
 
 const formula = /^'*[=+\-@\t\r]/;
 
@@ -79,6 +80,7 @@ export const eraseAll = (db: Db) =>
     tables(db)
       .reverse()
       .forEach((table) => db.run(`DELETE FROM ${table}`));
+    forgetHealth(db, true);
     seedCatalog(db);
     return files;
   });

@@ -1,8 +1,8 @@
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
-import { type ReactNode, useCallback, useRef, useState } from 'react';
-import { Linking, PanResponder, Platform, useWindowDimensions, View } from 'react-native';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Linking, PanResponder, Platform, useWindowDimensions, View } from 'react-native';
 import { ListIcon } from 'phosphor-react-native/src/icons/List';
 import Animated from 'react-native-reanimated';
 
@@ -11,6 +11,7 @@ import type { HomeSection } from '@/domain/rules';
 import { homeLayout, kit } from '@/domain/workouts';
 import { backupFolder, chooseBackupFolder, eraseData, exportData, folderName, shareTemplate, stopBackup } from '@/platform/data';
 import { db, readSetting, writeSetting } from '@/platform/db';
+import { healthMissing, healthName, openHealth, startHealth, startHealthRead, stopHealth, stopHealthRead, syncHealth } from '@/platform/health';
 import { alerts, allowed, rescheduleTimer } from '@/platform/notifications';
 import { Page } from '@/ui/measurements';
 import { digitTime, from12, localAt, onOrAfter, repeatDates, to12, weekdays } from '@/domain/rules';
@@ -197,6 +198,7 @@ export default function Settings() {
             <Txt variant="label" tone="muted">Stop backups</Txt>
           </Tap>
         )}
+        {Platform.OS !== 'web' && <HealthSync button={button} />}
         <Tap onPress={() => router.push('/import')} style={button}>
           <Txt variant="label">Import data</Txt>
         </Tap>
@@ -362,6 +364,103 @@ function KeyField({ title, value, digits, display, valid, error, onSave, childre
         />
       </BottomSheet>
     </View>
+  );
+}
+
+const readHealth = () => ({
+  on: readSetting('health') === 'on',
+  at: readSetting('healthAt'),
+  error: readSetting('healthError'),
+  read: readSetting('healthRead') === 'on',
+  readAt: readSetting('healthReadAt'),
+  readError: readSetting('healthReadError'),
+});
+
+const when = (at: string) => new Date(at).toLocaleString('en', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+
+function HealthSync({ button }: { button: object }) {
+  const [{ on, at, error, read, readAt, readError }, setHealth] = useState(readHealth);
+  const [busy, setBusy] = useState<'write' | 'read' | null>(null);
+  const [missing, setMissing] = useState(false);
+  const refresh = useCallback(() => {
+    void healthMissing().then((m) => setMissing(!!m));
+    void syncHealth().then(() => setHealth(readHealth()));
+  }, []);
+  useFocusEffect(refresh);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && refresh());
+    return () => sub.remove();
+  }, [refresh]);
+  return (
+    <>
+      <Choice
+        title={healthName}
+        value={on}
+        options={[[false, 'Off'], [true, 'On']]}
+        onChange={(next) => {
+          if (next === on || busy) return;
+          if (!next) {
+            stopHealth();
+            return setHealth(readHealth());
+          }
+          setBusy('write');
+          startHealth()
+            .catch((e) => writeSetting('healthError', (e as Error).message))
+            .finally(() => {
+              setBusy(null);
+              setHealth(readHealth());
+            });
+        }}
+      />
+      <Txt variant="meta" tone="muted" style={{ marginTop: space.s }}>
+        {busy === 'write'
+          ? 'Writing…'
+          : on
+            ? `Writes finished workouts and body weight to ${healthName} on this device.${at ? ` Last written ${when(at)}.` : ''}`
+            : `Writes finished workouts and body weight to ${healthName} on this device, where apps you allow can read them. Turning it off leaves what was written there.`}
+      </Txt>
+      {on && error && busy !== 'write' ? <HealthProblem error={error} missing={missing} button={button} /> : null}
+      <Choice
+        title="Read body weight"
+        value={read}
+        options={[[false, 'Off'], [true, 'On']]}
+        onChange={(next) => {
+          if (next === read || busy) return;
+          if (!next) {
+            stopHealthRead();
+            return setHealth(readHealth());
+          }
+          setBusy('read');
+          startHealthRead()
+            .catch((e) => writeSetting('healthReadError', (e as Error).message))
+            .finally(() => {
+              setBusy(null);
+              setHealth(readHealth());
+            });
+        }}
+      />
+      <Txt variant="meta" tone="muted" style={{ marginTop: space.s }}>
+        {busy === 'read'
+          ? 'Reading…'
+          : read
+            ? `Adds body weight from other apps in ${healthName} to dates with none.${readAt ? ` Last read ${when(readAt)}.` : ''}`
+            : `Adds body weight that other apps saved in ${healthName} to dates with none. A weight you log in nicereps is kept, and nothing read is written back.`}
+      </Txt>
+      {read && readError && busy !== 'read' ? <HealthProblem error={readError} missing={missing} button={button} /> : null}
+    </>
+  );
+}
+
+function HealthProblem({ error, missing, button }: { error: string; missing: boolean; button: object }) {
+  return (
+    <>
+      <Txt variant="meta" accessibilityLiveRegion="polite" style={{ marginTop: space.s }}>{error}</Txt>
+      {!(missing && Platform.OS === 'ios') && (
+        <Tap accessibilityRole="link" onPress={() => void openHealth(missing)} style={button}>
+          <Txt variant="label">{missing ? `Get ${healthName}` : `Open ${healthName}`}</Txt>
+        </Tap>
+      )}
+    </>
   );
 }
 
