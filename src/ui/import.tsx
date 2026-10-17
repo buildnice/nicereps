@@ -162,6 +162,7 @@ export function Import() {
                       <Row
                         title={e.name}
                         meta={e.id === 'new' ? 'New custom exercise' : e.exercise ? `${e.exercise}${e.saved ? ' · remembered' : ''}` : e.id === 'skip' ? 'Skipped' : 'No match · skipped'}
+                        tone={e.id === 'new' || e.exercise ? 'muted' : 'warning'}
                         expanded={matching === e.name}
                         onPress={() => setMatching(matching === e.name ? null : e.name)}
                       />

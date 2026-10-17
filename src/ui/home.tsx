@@ -177,7 +177,7 @@ function StartChoices({ onStart }: { onStart: Start }) {
   );
 }
 
-export function Row({ title, meta, onPress, icon, expanded, starred, image, children }: { title: string; meta: string; onPress?: () => void; icon?: Phosphor; expanded?: boolean; starred?: boolean; image?: string; children?: ReactNode }) {
+export function Row({ title, meta, tone = 'muted', onPress, icon, expanded, starred, image, children }: { title: string; meta: string; tone?: 'muted' | 'warning'; onPress?: () => void; icon?: Phosphor; expanded?: boolean; starred?: boolean; image?: string; children?: ReactNode }) {
   const c = useColors();
   return (
     <Tap
@@ -191,7 +191,7 @@ export function Row({ title, meta, onPress, icon, expanded, starred, image, chil
       {image && <Image source={{ uri: image }} resizeMethod="resize" style={[styles.thumb, { backgroundColor: c.raised }]} />}
       <View style={{ flex: 1 }}>
         <Txt>{title}</Txt>
-        <Txt variant="meta" tone="muted">{meta}</Txt>
+        <Txt variant="meta" tone={tone}>{meta}</Txt>
         {children}
       </View>
       {starred !== undefined ? <Icon of={StarIcon} tone={starred ? 'text' : 'faint'} filled={starred} /> : onPress && <Icon of={icon ?? (expanded ? CaretDownIcon : CaretRightIcon)} tone="faint" />}
