@@ -1,0 +1,104 @@
+appId: com.buildnice.nicereps
+name: Copy an exercise as a custom one
+---
+- runFlow: common/launch.yml
+- tapOn: Start workout
+- tapOn: Fresh workout
+- runFlow: {file: common/add-exercise.yml, env: {QUERY: Bench Press - Medium, NAME: Barbell Bench Press - Medium Grip}}
+- runFlow: {file: common/add-exercise.yml, env: {QUERY: Full Squat, NAME: Barbell Full Squat}}
+# The copy is filled from the original and lands right after it, with the original kept.
+- scrollUntilVisible:
+    element: Barbell Bench Press - Medium Grip
+    direction: UP
+- tapOn: Barbell Bench Press - Medium Grip
+- waitForAnimationToEnd
+- tapOn: Barbell Bench Press - Medium Grip options
+- scrollUntilVisible:
+    element: Copy Barbell Bench Press - Medium Grip as a custom exercise
+    centerElement: true
+- tapOn: Copy Barbell Bench Press - Medium Grip as a custom exercise
+- scrollUntilVisible:
+    element: "Barbell Bench Press - Medium Grip \\(copy\\)"
+    centerElement: true
+- scrollUntilVisible:
+    element: barbell
+    centerElement: true
+- tapOn: New exercise equipment
+- eraseText
+- inputText: barbell, close grip
+- hideKeyboard
+- scrollUntilVisible:
+    element: Add new exercise
+    centerElement: true
+- assertVisible: "chest · primary"
+- tapOn: Add new exercise
+- scrollUntilVisible:
+    element: Barbell Full Squat
+    direction: UP
+- assertVisible:
+    text: "Barbell Bench Press - Medium Grip \\(copy\\)"
+    below:
+      text: "Barbell Bench Press - Medium Grip"
+- assertVisible:
+    text: Barbell Full Squat
+    below:
+      text: "Barbell Bench Press - Medium Grip \\(copy\\)"
+# The picker's Start from fills the New exercise form from any exercise, even one in this workout.
+- scrollUntilVisible:
+    element: Add exercise
+- tapOn: Add exercise
+- tapOn: Search exercises
+- inputText: zzz
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Start from Blank, change"
+    centerElement: true
+- tapOn: "Start from Blank, change"
+- assertVisible: Tap the exercise to start from.
+- tapOn: Search exercises
+- eraseText
+- inputText: Full Squ
+- hideKeyboard
+- tapOn: "Barbell Full Squat, Weight × reps.*"
+- scrollUntilVisible:
+    element: Add new exercise
+    centerElement: true
+- scrollUntilVisible:
+    element: "Barbell Full Squat \\(copy\\)"
+    direction: UP
+# A template exercise's copy is added right after it in the template.
+- runFlow: common/launch.yml
+- runFlow: common/bench-workout.yml
+- scrollUntilVisible:
+    element: Save as template
+- tapOn: Save as template
+- eraseText
+- inputText: Push A
+- hideKeyboard
+- tapOn: Save
+- back
+- scrollUntilVisible:
+    element: "Push A, .*"
+- tapOn: "Push A, .*"
+- scrollUntilVisible:
+    element: Edit
+- tapOn: Edit
+- scrollUntilVisible:
+    element: Copy Barbell Bench Press - Medium Grip as a custom exercise
+    centerElement: true
+- tapOn: Copy Barbell Bench Press - Medium Grip as a custom exercise
+- scrollUntilVisible:
+    element: "Barbell Bench Press - Medium Grip \\(copy\\)"
+    centerElement: true
+- scrollUntilVisible:
+    element: Add new exercise
+    centerElement: true
+- tapOn: Add new exercise
+- scrollUntilVisible:
+    element: Copy Barbell Bench Press - Medium Grip \(copy\) as a custom exercise
+    direction: UP
+    centerElement: true
+- assertVisible:
+    text: "Barbell Bench Press - Medium Grip \\(copy\\)"
+    below:
+      text: "Barbell Bench Press - Medium Grip"
