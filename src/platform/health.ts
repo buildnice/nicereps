@@ -1,6 +1,6 @@
 import { forgetHealth, healthChanges, markRemoved, markWritten, readWeights, type HealthRecord } from '@/domain/health';
 
-import { db, readSetting, writeSetting } from './db';
+import { db, inTurn, readSetting, writeSetting } from './db';
 import { healthGranted, healthMissing, readGranted, readHealthWeights, removeHealth, requestHealth, writeHealth } from './healthStore';
 
 export { healthMissing, healthName, openHealth } from './healthStore';
@@ -62,8 +62,7 @@ const read = async () => {
   if (reading()) writeSetting('healthReadError', error);
 };
 
-let queue = Promise.resolve();
-export const syncHealth = () => (queue = queue.then(sync).catch(() => {}));
+export const syncHealth = () => inTurn(sync).catch(() => {});
 
 export const startHealth = async () => {
   const missing = await healthMissing();

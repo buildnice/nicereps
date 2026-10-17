@@ -10,20 +10,12 @@ import { photoName } from '@/domain/measurements';
 import * as data from '@/domain/portability';
 import { localDate } from '@/domain/rules';
 
-import { db, readSetting, writeSetting } from './db';
+import { db, inTurn, readSetting, writeSetting } from './db';
 import { photoDir } from './photos';
 import { scheduleTimer } from './notifications';
 
 const exportDir = new Directory(Paths.cache, 'export');
 const importDir = new Directory(Paths.cache, 'import');
-
-// Import steps hold a transaction across yields, so imports, exports and backups take turns.
-let queue: Promise<unknown> = Promise.resolve();
-const inTurn = <T>(job: () => Promise<T>) => {
-  const next = queue.then(job);
-  queue = next.catch(() => {});
-  return next;
-};
 
 const steps = <T>(run: () => Generator<number, T>, progress: (done: number) => void) =>
   inTurn(async () => {

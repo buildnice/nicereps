@@ -130,7 +130,7 @@ export function Import() {
       {busy?.at === 'file' && progress}
       {error && <Txt variant="meta" accessibilityLiveRegion="polite" style={{ marginTop: space.s }}>{error}</Txt>}
       {picked && preview && (
-        <>
+        <View pointerEvents={busy ? 'none' : 'auto'}>
           <Section title="Selected file">
             {!groups.length && !preview.errors.length && <Txt variant="meta" tone="muted">No records found.</Txt>}
             {groups.map(({ title, n }) => (
@@ -225,7 +225,7 @@ export function Import() {
               )}
             </>
           )}
-        </>
+        </View>
       )}
     </Page>
   );

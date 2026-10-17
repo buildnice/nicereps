@@ -13,6 +13,14 @@ export const db: Db = {
 
 migrate(db);
 
+// Import steps hold a transaction across yields, so imports, exports, backups and health sync take turns.
+let queue: Promise<unknown> = Promise.resolve();
+export const inTurn = <T>(job: () => Promise<T>) => {
+  const next = queue.then(job);
+  queue = next.catch(() => {});
+  return next;
+};
+
 export const readSetting = (key: string) => getSetting(db, key);
 
 export const writeSetting = (key: string, value: string) => setSetting(db, key, value);
