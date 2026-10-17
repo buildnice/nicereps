@@ -182,8 +182,11 @@ export const isDate = (date: string) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(d.getTime()) && d.toISOString().startsWith(date);
 };
 
+const formats = new Map<string, Intl.DateTimeFormat>();
 export const wallTime = (t: number, timeZone: string) => {
-  const format = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  if (!formats.has(timeZone))
+    formats.set(timeZone, new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+  const format = formats.get(timeZone)!;
   const p = Object.fromEntries(format.formatToParts(t).map((x) => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
 };

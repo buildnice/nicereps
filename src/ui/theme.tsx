@@ -121,7 +121,7 @@ export function usePrototype() {
 
 export const useColors = () => palettes[usePrototype().scheme];
 
-type TxtProps = TextProps & { variant?: keyof typeof type; tone?: 'text' | 'muted' | 'faint' | 'onAccent' };
+type TxtProps = TextProps & { variant?: keyof typeof type; tone?: 'text' | 'muted' | 'faint' | 'onAccent' | 'warning' };
 
 export function Txt({ variant = 'body', tone = 'text', style, ...props }: TxtProps) {
   const c = useColors();

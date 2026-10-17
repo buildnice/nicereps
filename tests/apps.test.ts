@@ -9,7 +9,7 @@ import { strToU8, zipSync } from 'fflate';
 
 import { openDb, readDb } from '../cli/db.ts';
 import { matchExercises } from '../src/domain/apps.ts';
-import { applyImport, parseCsv, previewImport, readImport } from '../src/domain/portability.ts';
+import { applyImport, applyImportSteps, parseCsv, previewImport, readImport, readImportSteps } from '../src/domain/portability.ts';
 import { createExercise, setSetting } from '../src/domain/workouts.ts';
 
 const header = '"Workout #";"Date";"Workout Name";"Duration (sec)";"Exercise Name";"Set Order";"Weight (kg)";"Reps";"RPE";"Distance (meters)";"Seconds";"Notes";"Workout Notes"';
@@ -20,37 +20,36 @@ const push = strong([
   '"1";"2026-03-02 18:30:00";"Push 💪";"3600";"Bench Press (Barbell)";"1";"80";"5";"8";"";"";"paused";""',
   '"1";"2026-03-02 18:30:00";"Push 💪";"3600";"Bench Press (Barbell)";"D";"60";"8";"";"";"";"";""',
   '"1";"2026-03-02 18:30:00";"Push 💪";"3600";"Squat (Barbell)";"F";"100";"3";"";"";"";"";""',
-  '"1";"2026-03-02 18:30:00";"Push 💪";"3600";"Rowing (Machine)";"1";"";"";"";"2000";"480";"";""',
+  '"1";"2026-03-02 18:30:00";"Push 💪";"3600";"Landmine 180";"1";"";"";"";"2000";"480";"";""',
 ]);
 const count = (db: ReturnType<typeof openDb>, sql: string) => db.all(sql)[0].n;
 
-test('exercise names match exactly, then by their words ignoring order, plurals and brackets', () => {
+test('exercise names match by alias, exactly, then by their words ignoring order, plurals and brackets', () => {
   const db = openDb(':memory:');
   createExercise(db, 'Tyre Flip Heavy', []);
   createExercise(db, 'Heavy Tyre Flips', []);
-  const m = matchExercises(db, 'strong', ['leg press', 'Seated Row (Cable)', 'Squat (Barbell)', 'Bench Press (Barbell)', 'Flip - Heavy Tyre']);
+  const m = matchExercises(db, 'strong', ['leg press', 'Seated Row (Cable)', 'Squat (Barbell)', 'Bench Press (Barbell)', 'Flip - Heavy Tyre', 'Air Bike', 'Rowing (Machine)', 'Landmine 180']);
   const name = (id: string | null) => id && db.all('SELECT name FROM exercise WHERE id = ?', [id])[0].name;
   assert.deepEqual(
     Object.values(m).map((x) => name(x.id)),
-    ['Leg Press', 'Seated Cable Rows', 'Barbell Squat', null, null],
+    ['Leg Press', 'Seated Cable Rows', 'Barbell Squat', 'Barbell Bench Press - Medium Grip', null, 'Bicycling, Stationary', 'Rowing, Stationary', null],
   );
 });
 
-test('a Strong workout CSV imports once every exercise name has a match, in the importing time zone', () => {
+test('a Strong workout CSV imports with its exercises matched or created, in the importing time zone', () => {
   const db = openDb(':memory:');
   const imp = readImport(db, [push], 'Australia/Sydney');
   assert.deepEqual(imp.errors, []);
   const preview = previewImport(db, imp);
-  assert.deepEqual(preview.unmatched, ['Bench Press (Barbell)', 'Rowing (Machine)']);
+  assert.deepEqual(preview.unmatched, ['Landmine 180']);
   assert.deepEqual(
     preview.exercises.map((e) => [e.name, !!e.id, e.saved]),
-    [['Bench Press (Barbell)', false, false], ['Squat (Barbell)', true, false], ['Rowing (Machine)', false, false]],
+    [['Bench Press (Barbell)', true, false], ['Squat (Barbell)', true, false], ['Landmine 180', false, false]],
   );
-  assert.throws(() => applyImport(db, imp, 'skip'), /match Bench Press \(Barbell\) to an exercise first/);
   assert.equal(count(db, 'SELECT COUNT(*) n FROM workout'), 0);
 
   const bench = db.all("SELECT id FROM exercise WHERE name = 'Barbell Bench Press - Medium Grip'")[0].id as string;
-  const applied = applyImport(db, imp, 'skip', {}, { 'Bench Press (Barbell)': bench, 'Rowing (Machine)': 'new' });
+  const applied = applyImport(db, imp, 'skip', {}, { 'Landmine 180': 'new' });
   assert.equal(applied.counts.workout_set.new, 5);
   assert.deepEqual({ ...db.all('SELECT name, date, time_zone, started_at, finished_at, note FROM workout')[0] }, {
     name: 'Push 💪',
@@ -62,7 +61,7 @@ test('a Strong workout CSV imports once every exercise name has a match, in the 
   });
   assert.deepEqual(
     db.all('SELECT e.name, x.note FROM workout_exercise x JOIN exercise e ON e.id = x.exercise_id ORDER BY x.position').map((r) => [r.name, r.note]),
-    [['Barbell Bench Press - Medium Grip', 'the whole "gym went quiet" day'], ['Barbell Squat', null], ['Rowing (Machine)', null]],
+    [['Barbell Bench Press - Medium Grip', 'the whole "gym went quiet" day'], ['Barbell Squat', null], ['Landmine 180', null]],
   );
   assert.deepEqual(
     db.all('SELECT type, weight, unit, reps, rpe, comment, duration, distance, distance_unit FROM workout_set ORDER BY rowid').map((r) => Object.values(r)),
@@ -74,7 +73,7 @@ test('a Strong workout CSV imports once every exercise name has a match, in the 
       ['normal', 0, 'kg', 0, null, null, 480, 2, 'km'],
     ],
   );
-  assert.equal(db.all("SELECT mode FROM exercise WHERE name = 'Rowing (Machine)'")[0].mode, 'distance');
+  assert.equal(db.all("SELECT mode FROM exercise WHERE name = 'Landmine 180'")[0].mode, 'distance');
   assert.ok(Number(count(db, 'SELECT COUNT(*) n FROM workout_exercise_muscle')) > 0);
 
   const again = previewImport(db, readImport(db, [push], 'Australia/Sydney'));
@@ -159,7 +158,7 @@ test('a Hevy workout CSV imports set types, supersets, notes and modes, once', (
   const imp = readImport(db, [pull], 'Australia/Sydney');
   assert.deepEqual(imp.errors, []);
   assert.equal(imp.app, 'hevy');
-  assert.throws(() => applyImport(db, imp, 'skip'), /match Lat Pulldown \(Cable\) to an exercise first/);
+  assert.deepEqual(previewImport(db, imp).unmatched, ['Running']);
   assert.equal(count(db, 'SELECT COUNT(*) n FROM workout'), 0);
   applyImport(db, imp, 'skip', {}, { 'Lat Pulldown (Cable)': 'new', Running: 'new' });
   assert.deepEqual({ ...db.all('SELECT name, date, started_at, finished_at, note FROM workout')[0] }, {
@@ -191,6 +190,48 @@ test('a Hevy workout CSV imports set types, supersets, notes and modes, once', (
   const again = previewImport(db, readImport(db, [pull], 'Australia/Sydney'));
   assert.deepEqual(again.counts.workout, { new: 0, duplicates: 0, unchanged: 1 });
   assert.equal(again.counts.workout_set.new, 0);
+});
+
+test('skipped exercise names drop their sets and any workout left empty, renumber the rest, and are not remembered; an emptied workout can import later', () => {
+  const db = openDb(':memory:');
+  const skippedPush = strong([
+    '"1";"2026-03-02 18:30:00";"Push";"3600";"Squat (Barbell)";"1";"100";"3";"";"";"";"";""',
+    '"1";"2026-03-02 18:30:00";"Push";"3600";"Bench Press (Barbell)";"1";"80";"5";"";"";"";"";""',
+    '"2";"2026-03-04 18:30:00";"Row";"600";"Landmine 180";"1";"";"";"";"2000";"480";"";""',
+  ]);
+  const applied = applyImport(db, readImport(db, [skippedPush], 'UTC'), 'skip', {}, { 'Squat (Barbell)': 'skip' });
+  assert.deepEqual(applied.unmatched, ['Squat (Barbell)', 'Landmine 180']);
+  assert.deepEqual(applied.latest.workout, { name: 'Push', date: '2026-03-02' });
+  assert.deepEqual(
+    db.all('SELECT w.name, e.name AS exercise, x.position, COUNT(s.id) AS sets FROM workout w JOIN workout_exercise x ON x.workout_id = w.id JOIN exercise e ON e.id = x.exercise_id JOIN workout_set s ON s.workout_exercise_id = x.id GROUP BY x.id').map((r) => Object.values(r)),
+    [['Push', 'Barbell Bench Press - Medium Grip', 0, 1]],
+  );
+  assert.equal(count(db, 'SELECT COUNT(*) n FROM workout'), 1);
+  assert.deepEqual(count(db, "SELECT COUNT(*) n FROM exercise WHERE name = 'Landmine 180'"), 0);
+  const again = previewImport(db, readImport(db, [skippedPush], 'UTC'), 'skip', {}, { 'Landmine 180': 'new' });
+  assert.deepEqual(again.exercises.map((e) => [e.name, e.id]), [['Landmine 180', 'new']]);
+  assert.deepEqual(again.counts.workout, { new: 1, duplicates: 0, unchanged: 1 });
+  assert.equal(count(db, "SELECT COUNT(*) n FROM app_exercise WHERE name = 'Squat (Barbell)'"), 0);
+
+  const other = openDb(':memory:');
+  applyImport(other, readImport(other, [pull], 'UTC'), 'skip', {}, { 'Squat (Barbell)': 'skip' });
+  assert.deepEqual(other.all('SELECT superset FROM workout_exercise ORDER BY position').map((r) => r.superset), [null, null]);
+});
+
+test('import steps report rising progress and end with the same result as the plain operations', () => {
+  const db = openDb(':memory:');
+  const lines = Array.from({ length: 450 }, (_, i) => `"1";"2026-03-02 18:30:00";"Push";"3600";"Bench Press (Barbell)";"${i + 1}";"80";"5";"";"";"";"";""`);
+  const progress: number[] = [];
+  const steps = readImportSteps(db, [strong(lines)], 'UTC');
+  let step = steps.next();
+  for (; !step.done; step = steps.next()) progress.push(step.value);
+  assert.deepEqual(progress, [100, 200, 300, 400].map((n) => n / 450));
+  const imp = step.value;
+  const applying = applyImportSteps(db, imp, 'skip');
+  const seen: number[] = [];
+  for (let next = applying.next(); !next.done; next = applying.next()) seen.push(next.value);
+  assert.ok(seen.length >= 4 && seen.every((n, i) => n > 0 && n <= 1 && (i === 0 || n > seen[i - 1])));
+  assert.equal(count(db, 'SELECT COUNT(*) n FROM workout_set'), 450);
 });
 
 test('a Hevy export in pounds and miles keeps its units, and a bad row is rejected', () => {
@@ -278,7 +319,7 @@ test('a FitNotes backup imports sets, units, comments, times, supersets and meas
   assert.deepEqual(imp.errors, []);
   assert.equal(imp.app, 'fitnotes');
   assert.deepEqual(imp.skipped, ['Body fat: 2 entries; nicereps has no measurement for it']);
-  assert.throws(() => applyImport(db, imp, 'skip'), /match Flat Barbell Bench Press to an exercise first/);
+  assert.deepEqual(previewImport(db, imp).unmatched, ['Running (Outdoor)', 'Walking']);
   assert.equal(count(db, 'SELECT COUNT(*) n FROM workout'), 0);
   applyImport(db, imp, 'skip', {}, { 'Flat Barbell Bench Press': 'new', 'Running (Outdoor)': 'new', Walking: 'new' });
   assert.deepEqual(
@@ -357,7 +398,7 @@ test('a StrengthLog CSV imports sets, supersets, bodyweight loads and holds in t
   assert.deepEqual(imp.errors, []);
   assert.equal(imp.app, 'strengthlog');
   assert.deepEqual(imp.notes, ["Weights are read as kg, the weight unit in Settings: StrengthLog's export does not say which unit it used"]);
-  assert.throws(() => applyImport(db, imp, 'skip'), /match Wide-grip pull-up to an exercise first/);
+  assert.deepEqual(previewImport(db, imp).unmatched, ['Wide-grip pull-up']);
   assert.equal(count(db, 'SELECT COUNT(*) n FROM workout'), 0);
   applyImport(db, imp, 'skip', {}, { 'Wide-grip pull-up': 'new' });
   assert.deepEqual({ ...db.all('SELECT name, date, started_at, finished_at, note FROM workout')[0] }, {

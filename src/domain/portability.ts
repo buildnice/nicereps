@@ -7,7 +7,7 @@ import { forgetHealth } from './health.ts';
 import { photoName } from './measurements.ts';
 import { isDate, localDate, optionalFields } from './rules.ts';
 import { badSetting } from './workouts.ts';
-import { fromFitNotes, fromHevy, fromHevyMeasurements, fromStrengthLog, fromStrong, fromStrongMeasurements, isFitNotes, isHevy, isHevyMeasurements, isStrengthLog, isStrong, isStrongMeasurements, resolveExercises, type Found, type Match } from './apps.ts';
+import { fromFitNotes, fromHevy, fromHevyMeasurements, fromStrengthLog, fromStrong, fromStrongMeasurements, isFitNotes, isHevy, isHevyMeasurements, isStrengthLog, isStrong, isStrongMeasurements, resolveExercises, drain, each, type Found, type Match } from './apps.ts';
 
 const deviceSettings = new Set(['backupFolder', 'backupAt', 'backupError', 'backupDismissedAt', 'exportedAt', 'health', 'healthAt', 'healthError', 'healthRead', 'healthReadAt', 'healthReadError']);
 
@@ -98,7 +98,7 @@ export type Parsed = { table: string; columns: string[]; rows: { at: string; cel
 export type Import = { tables: Parsed[]; errors: string[]; app?: string; exercises?: Found[]; skipped?: string[]; notes?: string[] };
 export type Action = 'skip' | 'update' | 'replace';
 export type Duplicate = { key: string; table: string; label: string };
-export type Preview = { counts: Record<string, { new: number; duplicates: number; unchanged: number }>; duplicates: Duplicate[]; errors: string[]; exercises: Match[]; unmatched: string[] };
+export type Preview = { counts: Record<string, { new: number; duplicates: number; unchanged: number }>; duplicates: Duplicate[]; errors: string[]; exercises: Match[]; unmatched: string[]; latest: ReturnType<typeof importHighlights> };
 
 const concat = (parts: Uint8Array[]) => {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
@@ -139,7 +139,7 @@ const unpack = (chunks: Iterable<Uint8Array>, errors: string[], photos: Set<stri
   return Object.fromEntries(Object.entries(files).map(([name, parts]) => [name, strFromU8(concat(parts))]));
 };
 
-const fromTemplate = (db: Db, rows: (string | null)[][], timeZone: string, errors: string[]): Parsed[] => {
+function* fromTemplate(db: Db, rows: (string | null)[][], timeZone: string, errors: string[]): Generator<number, Parsed[]> {
   const [header, ...lines] = rows;
   const unknown = header.filter((c) => !templateColumns.includes(c ?? ''));
   if (unknown.length) return errors.push(`Unknown template columns: ${unknown.join(', ')}`), [];
@@ -154,7 +154,7 @@ const fromTemplate = (db: Db, rows: (string | null)[][], timeZone: string, error
       ['workout_set', ['id', 'workout_exercise_id', 'position', 'type', 'weight', 'unit', 'reps', 'duration', 'distance', 'rounds', 'recovery', 'rest', 'rpe', 'comment', 'completed']],
     ].map(([table, columns]) => [table, { table: table as string, columns: columns as string[], rows: [] }]),
   );
-  lines.forEach((cells, i) => {
+  yield* each(lines, (cells, i) => {
     const at = `template line ${i + 2}`;
     const r = Object.fromEntries(templateColumns.map((c) => [c, cells[header.indexOf(c)] ?? null]));
     if (!r.date || !isDate(r.date) || r.date > today) return errors.push(`${at}: date must be a past YYYY-MM-DD date`);
@@ -184,9 +184,9 @@ const fromTemplate = (db: Db, rows: (string | null)[][], timeZone: string, error
     });
   });
   return Object.values(out);
-};
+}
 
-export const readImport = (db: Db, chunks: Iterable<Uint8Array>, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, photo?: PhotoSink, openSqlite?: () => Db): Import => {
+export function* readImportSteps(db: Db, chunks: Iterable<Uint8Array>, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, photo?: PhotoSink, openSqlite?: () => Db): Generator<number, Import> {
   const errors: string[] = [];
   const names = tables(db).map((t) => `${t}.csv`);
   const photos = new Set<string>();
@@ -200,7 +200,7 @@ export const readImport = (db: Db, chunks: Iterable<Uint8Array>, timeZone = Intl
     if (strFromU8(first.subarray(0, 16)) === 'SQLite format 3\0') {
       const file = openSqlite?.();
       if (!file || !isFitNotes(file)) return { tables: [], errors: ['This SQLite file is not a FitNotes backup'] };
-      return { ...fromFitNotes(db, file, timeZone, errors), app: 'fitnotes', errors };
+      return { ...(yield* fromFitNotes(db, file, timeZone, errors)), app: 'fitnotes', errors };
     }
     if (first[0] !== 0x50 || first[1] !== 0x4b) {
       const parts: Uint8Array[] = [];
@@ -212,11 +212,11 @@ export const readImport = (db: Db, chunks: Iterable<Uint8Array>, timeZone = Intl
       const text = strFromU8(concat(parts)).replace(/^\uFEFF/, '');
       const rows = parseCsv(text, /^[^,\n]*;/.test(text) ? ';' : ',');
       if (!rows.length) return { tables: [], errors: ['The file is empty'] };
-      if (isStrong(rows[0])) return { ...fromStrong(db, rows, timeZone, errors), app: 'strong', errors };
-      if (isHevy(rows[0])) return { ...fromHevy(db, rows, timeZone, errors), app: 'hevy', errors };
+      if (isStrong(rows[0])) return { ...(yield* fromStrong(db, rows, timeZone, errors)), app: 'strong', errors };
+      if (isHevy(rows[0])) return { ...(yield* fromHevy(db, rows, timeZone, errors)), app: 'hevy', errors };
       if (isHevyMeasurements(rows[0])) return { ...fromHevyMeasurements(db, rows, errors), app: 'hevy', errors };
-      if (isStrengthLog(rows[0])) return { ...fromStrengthLog(db, rows, timeZone, errors), app: 'strengthlog', errors };
-      return { tables: fromTemplate(db, rows, timeZone, errors), errors };
+      if (isStrengthLog(rows[0])) return { ...(yield* fromStrengthLog(db, rows, timeZone, errors)), app: 'strengthlog', errors };
+      return { tables: yield* fromTemplate(db, rows, timeZone, errors), errors };
     }
     const files = unpack(stream, errors, photos, photo);
     if (isStrongMeasurements(files)) return { ...fromStrongMeasurements(db, files, (text) => parseCsv(text, ';'), errors), app: 'strong', errors };
@@ -243,7 +243,9 @@ export const readImport = (db: Db, chunks: Iterable<Uint8Array>, timeZone = Intl
   } catch (error) {
     return { tables: [], errors: [...errors, (error as Error).message] };
   }
-};
+}
+
+export const readImport = (...args: Parameters<typeof readImportSteps>) => drain(readImportSteps(...args));
 
 const typed = (db: Db, p: Parsed, errors: string[]) => {
   const info = new Map(db.all(`PRAGMA table_info(${p.table})`).map((c) => [c.name as string, c.type as string]));
@@ -275,7 +277,7 @@ const typed = (db: Db, p: Parsed, errors: string[]) => {
   });
 };
 
-const run = (db: Db, picked: Import, action: Action, overrides: Record<string, Action>, map: Record<string, string>, commit: boolean): Preview => {
+function* run(db: Db, picked: Import, action: Action, overrides: Record<string, Action>, map: Record<string, string>, commit: boolean): Generator<number, Preview> {
   const { imp, exercises, unmatched, remember, errors: matching } = resolveExercises(db, picked, map);
   const errors = [...imp.errors, ...matching];
   const counts: Preview['counts'] = {};
@@ -300,6 +302,8 @@ const run = (db: Db, picked: Import, action: Action, overrides: Record<string, A
           return { table: c.table, from, matches };
         }),
     );
+  const total = imp.tables.reduce((n, p) => n + p.rows.length, 0);
+  let done = 0;
   db.run('BEGIN');
   try {
     for (const p of imp.tables) {
@@ -316,7 +320,7 @@ const run = (db: Db, picked: Import, action: Action, overrides: Record<string, A
       const map = (maps[p.table] = new Map());
       const inserted = new Set<string>();
       const count = (counts[p.table] = { new: 0, duplicates: 0, unchanged: 0 });
-      rows.forEach(({ at, row }, i) => {
+      yield* each(rows, ({ at, row }, i) => {
         for (const f of fks) if (maps[f.table]?.has(row[f.from])) row[f.from] = maps[f.table].get(row[f.from])!;
         if (parents.some((f) => skipped.has(`${f.table}:${row[f.from]}`))) return;
         const hits = new Map<string, Row>();
@@ -353,11 +357,12 @@ const run = (db: Db, picked: Import, action: Action, overrides: Record<string, A
         } catch (error) {
           errors.push(`${at}: ${(error as Error).message}`);
         }
-      });
+      }, done, total);
+      done += p.rows.length;
     }
     for (const m of db.all("SELECT m.id FROM measurement m JOIN measurement_series s ON s.id = m.series_id WHERE (s.kind = 'weight') <> (m.unit IN ('kg', 'lb'))"))
       errors.push(`measurement ${m.id}: unit does not match its series`);
-    if (commit && !errors.length && !unmatched.length) {
+    if (commit && !errors.length) {
       remember?.();
       db.run('COMMIT');
     } else db.run('ROLLBACK');
@@ -365,8 +370,8 @@ const run = (db: Db, picked: Import, action: Action, overrides: Record<string, A
     db.run('ROLLBACK');
     throw error;
   }
-  return { counts, duplicates, errors, exercises, unmatched };
-};
+  return { counts, duplicates, errors, exercises, unmatched, latest: importHighlights(imp) };
+}
 
 const newest = (imp: Import, table: string, columns: string[]) => {
   const t = imp.tables.find((x) => x.table === table);
@@ -380,12 +385,15 @@ export const importHighlights = (imp: Import) => {
   return { workout: workout && { date: workout[0], name: workout[2] }, measured: newest(imp, 'measurement', ['date'])?.[0] ?? null };
 };
 
-export const previewImport = (db: Db, imp: Import, action: Action = 'skip', overrides: Record<string, Action> = {}, map: Record<string, string> = {}) =>
+export const previewImportSteps = (db: Db, imp: Import, action: Action = 'skip', overrides: Record<string, Action> = {}, map: Record<string, string> = {}) =>
   run(db, imp, action, overrides, map, false);
 
-export const applyImport = (db: Db, imp: Import, action: Action, overrides: Record<string, Action> = {}, map: Record<string, string> = {}) => {
-  const result = run(db, imp, action, overrides, map, true);
+export const previewImport = (...args: Parameters<typeof previewImportSteps>) => drain(previewImportSteps(...args));
+
+export function* applyImportSteps(db: Db, imp: Import, action: Action, overrides: Record<string, Action> = {}, map: Record<string, string> = {}) {
+  const result = yield* run(db, imp, action, overrides, map, true);
   if (result.errors.length) throw new Error(`Import rejected, nothing was written: ${result.errors[0]}`);
-  if (result.unmatched.length) throw new Error(`Import rejected, nothing was written: match ${result.unmatched[0]} to an exercise first`);
   return result;
-};
+}
+
+export const applyImport = (...args: Parameters<typeof applyImportSteps>) => drain(applyImportSteps(...args));

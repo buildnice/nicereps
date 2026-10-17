@@ -89,10 +89,11 @@ const usage = `Usage: nicereps <db-file> <command> [args]
   progress                              progress by month: photo days and starred values (default body weight)
   export <file.zip> [--photos DIR]      write every table as CSV with a manifest, plus the photo files found in DIR
   erase [--photos DIR]                  delete all data and the referenced photo files in DIR; the catalog is restored
-  import <file.zip|file.csv|file.fitnotes> [--apply skip|update|replace] [--photos DIR] [--map "NAME=EXERCISE|new" ...]
+  import <file.zip|file.csv|file.fitnotes> [--apply skip|update|replace] [--photos DIR] [--map "NAME=EXERCISE|new|skip" ...]
                                         preview a nicereps export, a filled blank template, a Strong workout CSV or measurements ZIP,
                                         a Hevy workout or measurement CSV, a FitNotes backup, or a StrengthLog CSV;
-                                        --map matches another app's exercise name to one of ours or a new custom exercise;
+                                        --map matches another app's exercise name to one of ours or a new custom exercise, or skips it;
+                                        a name with no match is skipped with its sets;
                                         --apply writes it, all or nothing, and its photo files into DIR
   blank-template                        print the blank CSV template
   health [--mark]                       records Health Connect or Apple Health still needs written or removed;
@@ -625,14 +626,13 @@ try {
       const imp = data.readImport(db, [readFileSync(args[0])], values.tz, values.photos ? sink : undefined, () => readDb(args[0]));
       const map = Object.fromEntries(
         (values.map ?? []).map((m) => {
-          if (!m.includes('=')) throw new Error(`--map ${m} must be NAME=EXERCISE or NAME=new`);
+          if (!m.includes('=')) throw new Error(`--map ${m} must be NAME=EXERCISE, NAME=new or NAME=skip`);
           const [name, target] = [m.slice(0, m.indexOf('=')), m.slice(m.indexOf('=') + 1)];
-          return [name, target === 'new' ? 'new' : exerciseId(db, target)];
+          return [name, target === 'new' || target === 'skip' ? target : exerciseId(db, target)];
         }),
       );
-      const checked = data.previewImport(db, imp, 'skip', {}, map);
-      const preview = values.apply && !checked.unmatched.length ? data.applyImport(db, imp, values.apply as data.Action, {}, map) : checked;
-      for (const e of preview.exercises) console.log(`exercise  ${e.name}  ->  ${e.id === 'new' ? 'new custom exercise' : (e.exercise ?? 'unmatched')}${e.saved ? '  (saved)' : ''}`);
+      const preview = values.apply ? data.applyImport(db, imp, values.apply as data.Action, {}, map) : data.previewImport(db, imp, 'skip', {}, map);
+      for (const e of preview.exercises) console.log(`exercise  ${e.name}  ->  ${e.id === 'new' ? 'new custom exercise' : (e.exercise ?? 'skipped')}${e.saved ? '  (saved)' : ''}`);
       for (const note of imp.skipped ?? []) console.log(`skipped  ${note}`);
       for (const note of imp.notes ?? []) console.log(`note  ${note}`);
       if (values.apply && values.photos) {
@@ -641,13 +641,13 @@ try {
           if (!existsSync(join(values.photos, file)) && db.all('SELECT 1 FROM photo WHERE file = ?', [file]).length) writeFileSync(join(values.photos, file), Buffer.concat(bytes));
       }
       for (const [table, count] of Object.entries(preview.counts)) console.log(`${table}  ${count.new} new  ${count.duplicates} changed  ${count.unchanged} unchanged`);
-      const latest = data.importHighlights(imp);
+      const { latest } = preview;
       if (latest.workout && !preview.errors.length) console.log(`most recent workout  ${latest.workout.name}  ${latest.workout.date}`);
       if (latest.measured && !preview.errors.length) console.log(`last measurements  ${latest.measured}`);
       for (const error of preview.errors) console.log(`error  ${error}`);
-      if (preview.unmatched.length) console.log(`unmatched  ${preview.unmatched.length} exercise names; add --map "NAME=EXERCISE" or --map "NAME=new"${values.apply ? ', nothing was written' : ''}`);
-      else if (values.apply) console.log(`applied, duplicates: ${values.apply}`);
-      if (preview.errors.length || (values.apply && preview.unmatched.length)) process.exitCode = 1;
+      if (preview.unmatched.length) console.log(`skipped  ${preview.unmatched.length} exercise names with their sets; add --map "NAME=EXERCISE" or --map "NAME=new" to import them`);
+      if (values.apply) console.log(`applied, duplicates: ${values.apply}`);
+      if (preview.errors.length) process.exitCode = 1;
       break;
     }
     case 'blank-template':
