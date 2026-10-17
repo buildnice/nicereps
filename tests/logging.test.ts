@@ -9,7 +9,8 @@ import { openDb } from '../cli/db.ts';
 import { seed } from '../cli/fixtures.ts';
 import { exerciseId } from '../src/data/queries.ts';
 import { migrations } from '../src/data/schema.ts';
-import { pace } from '../src/domain/rules.ts';
+import { isBarbell } from '../src/domain/plates.ts';
+import { pace, supersetBlocks } from '../src/domain/rules.ts';
 import * as ops from '../src/domain/workouts.ts';
 
 const setup = () => {
@@ -354,4 +355,46 @@ test('a workout summary counts its own volume, muscles, records and trends', () 
   assert.equal(ninth.exercises[0].top?.duration, 38);
   assert.deepEqual([ninth.exercises[1].trend, ninth.exercises[1].top], [[], null]);
   assert.equal(ops.workoutSummary(db, days[9]).exercises[0].records.length, 1);
+});
+
+test('a custom exercise copies an existing one, equipment, bar and note included', () => {
+  const { db, id } = setup();
+  const bench = id('Barbell Bench Press - Medium Grip');
+  ops.setBar(db, bench, 15, 'kg');
+  ops.setExerciseNote(db, bench, 'seat 4');
+  const draft = ops.exerciseDraft(db, bench);
+  assert.equal(draft.equipment, 'barbell');
+  assert.deepEqual(draft.mapping.map((m) => m.role).sort(), ['primary', 'secondary', 'secondary']);
+  const copy = ops.createExercise(db, 'Close Bench', draft.mapping, draft);
+  assert.deepEqual({ ...ops.exerciseDraft(db, copy), name: draft.name }, draft);
+  assert.equal(ops.exerciseKit(db, 'kg', ops.listExercises(db, 'Close Bench')[0])?.bar, 15);
+
+  const trap = ops.exerciseDraft(db, id('Trap Bar Deadlift'));
+  const trapCopy = ops.createExercise(db, 'Trap Pull', trap.mapping, trap);
+  assert.equal(ops.exerciseKit(db, 'kg', ops.listExercises(db, 'Trap Pull')[0])?.bar, 20, 'a copied bar exercise uses the Settings bar');
+  assert.equal(ops.exerciseDraft(db, trapCopy).equipment, 'trap bar');
+  ops.createExercise(db, 'Close Grip', trap.mapping, { equipment: 'Barbell, close grip' });
+  assert.equal(ops.exerciseKit(db, 'kg', ops.listExercises(db, 'Close Grip')[0])?.bar, 20, 'edited bar equipment keeps the bar');
+  assert.deepEqual(['EZ bar', 'ez-bar', 'Barbells', 'hex bar', 'dumbbell', 'body only', 'barbellish'].map((e) => isBarbell(null, e)), [true, true, true, true, false, false, false]);
+
+  const hold = ops.createExercise(db, 'Bench Hold', [], { ...draft, mode: 'duration', equipment: '  ' });
+  assert.deepEqual([ops.exerciseDraft(db, hold).bar, ops.exerciseDraft(db, hold).equipment], [null, null], 'only weight × reps keeps a bar');
+  assert.throws(() => ops.createExercise(db, 'Bad Bar', [], { bar: 0, barUnit: 'kg' }), /Bar weight/);
+});
+
+test('an exercise added after another lands after its superset block, in the order shown', () => {
+  const { db, id } = setup();
+  const w = ops.startWorkout(db, {});
+  const [a, b, c] = ['Bench Press', 'Plank', 'Run'].map((name) => ops.addExercise(db, w, id(name)));
+  ops.linkSuperset(db, a, b);
+  ops.linkSuperset(db, b, c);
+  ops.unlinkSuperset(db, b);
+  const names = () => ops.getWorkout(db, w).exercises.map((e) => e.name);
+  const shown = () => supersetBlocks(ops.getWorkout(db, w).exercises).flat().map((e) => e.name);
+  assert.deepEqual(shown(), ['Bench Press', 'Run', 'Plank']);
+  ops.addExercise(db, w, id('Bike Sprints'), a);
+  assert.deepEqual(names(), ['Bench Press', 'Run', 'Bike Sprints', 'Plank']);
+  ops.addExercise(db, w, id('Mobility Flow'), b);
+  assert.deepEqual(names(), ['Bench Press', 'Run', 'Bike Sprints', 'Plank', 'Mobility Flow']);
+  assert.throws(() => ops.addExercise(db, w, id('Bench Press'), 'missing'), /Not found/);
 });

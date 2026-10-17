@@ -150,6 +150,7 @@ export const migrations: (string[] | ((db: Db) => void))[] = [
   ],
   ['ALTER TABLE exercise ADD COLUMN note TEXT'],
   ["CREATE TABLE health_record (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('workout', 'weight', 'read')), hash TEXT NOT NULL)"],
+  ['ALTER TABLE exercise ADD COLUMN equipment TEXT'],
 ];
 
 export const migrate = (db: Db) => {
