@@ -665,7 +665,7 @@ try {
     }
     case 'health-read': {
       const samples = JSON.parse(readFileSync(args[0], 'utf8'));
-      if (!Array.isArray(samples) || !samples.every((s) => typeof s?.id === 'string' && !Number.isNaN(Date.parse(s.at)) && Number.isFinite(s.kg))) throw new Error('Expected a JSON array of { id, at, kg } samples.');
+      if (!Array.isArray(samples) || !samples.every((s) => typeof s?.id === 'string' && !Number.isNaN(Date.parse(s.at)) && Number.isFinite(s.kg) && s.kg > 0)) throw new Error('Expected a JSON array of { id, at, kg } samples with kg above 0.');
       console.log(`added  ${health.readWeights(db, samples, values.tz ?? Intl.DateTimeFormat().resolvedOptions().timeZone)}`);
       break;
     }
