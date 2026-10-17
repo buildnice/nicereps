@@ -11,7 +11,7 @@ import { parseDate, Row, Section } from './home';
 import { Page, Trend } from './measurements';
 import { today } from './plan';
 import { clock, inUnit, space, Txt, usePrototype, type Units } from './theme';
-import { Chip, ExerciseHistory } from './workout';
+import { Chip, ExerciseHistory, ExerciseNote } from './workout';
 
 type Range = keyof typeof ops.volumeRanges;
 const rangeNames: Record<Range, string> = { week: 'Past week', month: 'Past month', all: 'All time' };
@@ -142,6 +142,7 @@ export function LiftDetail() {
   const { lift, prs } = state;
   return (
     <Page title={lift.name}>
+      <Section title="Note"><ExerciseNote exerciseId={lift.id} name={lift.name} note={lift.note} /></Section>
       {prs.map((r) => [r, ...recordLabel(r, units).split(' · ')] as const).map(([r, best, change]) => (
         <Section key={r.kind} title={kindNames[r.kind]}>
           <Row

@@ -73,7 +73,7 @@ test('step 2 database migrates with its data intact', () => {
     duration: null, distance: null, distanceUnit: 'km', rounds: null, recovery: null, rest: null, targetRpe: null, rpe: null, comment: null, options: null, fields: null,
   });
   assert.deepEqual(ops.getTemplate(db, 't1').exercises, [{
-    exerciseId: 'e1', name: 'Bench Press', mode: 'reps', superset: null,
+    exerciseId: 'e1', name: 'Bench Press', mode: 'reps', exerciseNote: null, superset: null,
     sets: [{ type: 'normal', weight: 80, unit: 'kg', reps: 8, duration: null, distance: null, distanceUnit: 'km', rounds: null, recovery: null, rest: null, targetRpe: null, options: null }],
   }]);
 });
