@@ -59,7 +59,7 @@ name: Copy an exercise as a custom one
 - eraseText
 - inputText: Full Squ
 - hideKeyboard
-- tapOn: Barbell Full Squat.*
+- tapOn: "Barbell Full Squat, Weight × reps.*"
 - scrollUntilVisible:
     element: Add new exercise
     centerElement: true

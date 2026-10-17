@@ -15,7 +15,7 @@ export const kitDefaults: Record<WeightUnit, Kit> = {
 
 export const equipment = (source: string | null, own: string | null) => (source === 'Trap_Bar_Deadlift' ? 'trap bar' : source ? (catalog[source]?.equipment ?? null) : own);
 
-export const isBarbell = (source: string | null, own: string | null) => /\b(barbell|e-z curl bar|trap bar)\b/i.test(equipment(source, own) ?? '');
+export const isBarbell = (source: string | null, own: string | null) => /\b(barbells?|e-?z[- ](curl )?bar|trap bar|hex bar)\b/i.test(equipment(source, own) ?? '');
 
 const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
 

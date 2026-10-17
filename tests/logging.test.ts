@@ -9,6 +9,7 @@ import { openDb } from '../cli/db.ts';
 import { seed } from '../cli/fixtures.ts';
 import { exerciseId } from '../src/data/queries.ts';
 import { migrations } from '../src/data/schema.ts';
+import { isBarbell } from '../src/domain/plates.ts';
 import { pace, supersetBlocks } from '../src/domain/rules.ts';
 import * as ops from '../src/domain/workouts.ts';
 
@@ -374,6 +375,7 @@ test('a custom exercise copies an existing one, equipment, bar and note included
   assert.equal(ops.exerciseDraft(db, trapCopy).equipment, 'trap bar');
   ops.createExercise(db, 'Close Grip', trap.mapping, { equipment: 'Barbell, close grip' });
   assert.equal(ops.exerciseKit(db, 'kg', ops.listExercises(db, 'Close Grip')[0])?.bar, 20, 'edited bar equipment keeps the bar');
+  assert.deepEqual(['EZ bar', 'ez-bar', 'Barbells', 'hex bar', 'dumbbell', 'body only', 'barbellish'].map((e) => isBarbell(null, e)), [true, true, true, true, false, false, false]);
 
   const hold = ops.createExercise(db, 'Bench Hold', [], { ...draft, mode: 'duration', equipment: '  ' });
   assert.deepEqual([ops.exerciseDraft(db, hold).bar, ops.exerciseDraft(db, hold).equipment], [null, null], 'only weight × reps keeps a bar');
