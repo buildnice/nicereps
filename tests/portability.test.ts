@@ -68,7 +68,7 @@ test('the export archive holds every row of every table, a manifest and every ph
   const manifest = JSON.parse(strFromU8(files['manifest.json']));
   assert.deepEqual(
     { ...manifest, tables: undefined },
-    { format: 'nicereps', version: 1, schema: 16, exportedAt: '2026-10-11T00:00:00.000Z', tables: undefined, photos: ['a.jpg', 'b.jpg'] },
+    { format: 'nicereps', version: 1, schema: 17, exportedAt: '2026-10-11T00:00:00.000Z', tables: undefined, photos: ['a.jpg', 'b.jpg'] },
   );
   assert.equal(manifest.tables.photo, 4);
   assert.equal(Object.keys(files).length, tables.length + 3);
@@ -272,7 +272,7 @@ test('malformed imports are rejected with no partial writes', async () => {
     ['bad date', rezip(chunks, (f) => (f['measurement.csv'] = strToU8(strFromU8(f['measurement.csv']).replace('2026-10-01', '2026-13-01')))), /date must be/],
     ['unknown column', rezip(chunks, (f) => (f['setting.csv'] = strToU8('key,value,extra\r\nweightUnit,lb,1\r\n'))), /unknown columns extra/],
     ['path', rezip(chunks, (f) => (f['../evil.csv'] = strToU8('x'))), /Unexpected file in archive: \.\.\/evil\.csv/],
-    ['schema', rezip(chunks, (f) => (f['manifest.json'] = strToU8(strFromU8(f['manifest.json']).replace('"schema": 16', '"schema": 99')))), /schema version 99/],
+    ['schema', rezip(chunks, (f) => (f['manifest.json'] = strToU8(strFromU8(f['manifest.json']).replace('"schema": 17', '"schema": 99')))), /schema version 99/],
     ['no manifest', rezip(chunks, (f) => delete f['manifest.json']), /Not a nicereps export/],
     ['broken csv', rezip(chunks, (f) => (f['template.csv'] = strToU8('id,name\r\n"a"b\r\n'))), /Malformed CSV/],
     ['too large', rezip(chunks, (f) => (f['template.csv'] = new Uint8Array(65 * 1024 * 1024).fill(65))), /more than 64 MB/],
