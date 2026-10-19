@@ -295,7 +295,7 @@ export const noteWorkout = (db: Db, workoutId: string, note: string) => q.setNot
 
 export const checkIns = {
   sleep: { title: 'Sleep', short: 'Sleep', low: 'Poor', high: 'Great' },
-  feel: { title: 'Session felt', short: 'Felt', low: 'Very hard', high: 'Very easy' },
+  feel: { title: 'Session felt', short: 'Feeling', low: 'Very hard', high: 'Very easy' },
   energy: { title: 'Energy', short: 'Energy', low: 'Drained', high: 'Full' },
 } as const;
 export type CheckIn = keyof typeof checkIns;

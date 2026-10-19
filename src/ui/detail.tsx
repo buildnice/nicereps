@@ -126,7 +126,18 @@ function Detail({ w, from }: { w: Summary; from?: string }) {
       <Txt variant="title" accessibilityRole="header" style={{ marginTop: space.xs }}>{w.name}</Txt>
       {!!w.note && <Txt tone="muted" style={{ marginTop: space.s, fontWeight: '400' }}>“{w.note}”</Txt>}
       <Tap accessibilityLabel={`Check-in: ${ops.checkInLine(rating).join(', ').replaceAll('/5', ' of 5') || 'none'}`} accessibilityHint={checking ? undefined : 'Edits the check-in'} accessibilityState={{ expanded: checking }} onPress={() => setChecking(!checking)} style={{ justifyContent: 'center' }}>
-        <Txt variant="meta" tone="muted">{ops.checkInLine(rating).join(' · ') || 'Add check-in'}</Txt>
+        {ops.checkInLine(rating).length ? (
+          <View style={styles.checkIn}>
+            {(Object.keys(ops.checkIns) as ops.CheckIn[]).map((k) => (
+              <View key={k} style={{ flex: 1 }}>
+                <Txt variant="caps" tone="muted">{ops.checkIns[k].short}</Txt>
+                <Txt variant="value" tone={rating[k] ? 'text' : 'faint'} style={{ marginTop: space.xs }}>{rating[k] ? `${rating[k]}/5` : '–'}</Txt>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Txt variant="meta" tone="muted">Add check-in</Txt>
+        )}
       </Tap>
       {checking && <CheckIn id={w.id} rating={rating} onChange={setRating} />}
 
@@ -385,6 +396,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: space.s, marginTop: space.l },
   action: { minHeight: 56, borderRadius: radius.m, alignItems: 'center' },
   entry: { flexDirection: 'row', gap: space.s, marginTop: space.s },
+  checkIn: { flexDirection: 'row', marginTop: space.l },
   scale: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.xs },
   note: { borderRadius: radius.s, paddingHorizontal: space.m, minHeight: 44, ...type.input, marginTop: space.xl },
   input: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', borderRadius: radius.s, paddingHorizontal: space.m, minHeight: 48 },

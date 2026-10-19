@@ -22,8 +22,8 @@ name: The check-in after Finish saves at once and is editable on the workout pag
 - scrollUntilVisible:
     element: "Workout, .* sets?"
 - tapOn: "Workout, .* sets?"
-- assertVisible: "Check-in: Sleep 4 of 5, Felt 2 of 5"
+- assertVisible: "Check-in: Sleep 4 of 5, Feeling 2 of 5"
 - assertVisible: .*Slept badly.*
 - tapOn: "Check-in: .*"
 - tapOn: Energy 5 of 5.*
-- assertVisible: "Check-in: Sleep 4 of 5, Felt 2 of 5, Energy 5 of 5"
+- assertVisible: "Check-in: Sleep 4 of 5, Feeling 2 of 5, Energy 5 of 5"
