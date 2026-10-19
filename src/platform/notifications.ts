@@ -9,7 +9,7 @@ import { localAt, type Phase } from '@/domain/rules';
 import { readSetting, writeSetting } from './db';
 import { syncActivity } from './restActivity';
 
-export type Timer = { workout: string; exercise: string; startedAt: number; phases: Phase[] };
+export type Timer = { workout: string; exercise: string; startedAt: number; phases: Phase[]; set?: string };
 
 let queue = Promise.resolve();
 

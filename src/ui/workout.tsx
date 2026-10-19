@@ -231,7 +231,26 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     return () => sub.remove();
   }, [hidden, edit, renaming, close]);
 
-  const startTimer = (exercise: string, phases: Timer['phases']) => setTimer(() => ({ workout: id, exercise, startedAt: Date.now(), phases }));
+  const startTimer = (exercise: string, phases: Timer['phases'], set?: string) => setTimer(() => ({ workout: id, exercise, startedAt: Date.now(), phases, set }));
+  // Retime a rest that was running when its set's rest field opened, once typing there ends, so keystrokes in between don't end it.
+  const retime = useRef<{ set: string; live: boolean; typed: boolean } | null>(null);
+  useEffect(() => {
+    const was = retime.current;
+    if (was && edit?.field === 'rest' && edit.set === was.set) {
+      was.typed ||= !edit.fresh;
+      return;
+    }
+    retime.current = edit?.field === 'rest' && timer?.set === edit.set ? { set: edit.set, live: (phaseAt(timer.phases, (Date.now() - timer.startedAt) / 1000)?.remaining ?? 0) > 0, typed: false } : null;
+    if (!was?.live || !was.typed || timer?.set !== was.set) return;
+    const exercise = exercises.find((x) => x.sets.some((s) => s.id === was.set));
+    const set = exercise?.sets.find((s) => s.id === was.set);
+    if (exercise && set) setTimer({ ...timer, phases: [{ ...timer.phases[0], seconds: set.rest ?? exercise.rest }] });
+  }, [edit, exercises, timer]);
+  // Leaving the app mid-typing closes the keypad so the background countdown and end alert get the new length.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => state !== 'active' && retime.current?.typed && setEdit(null));
+    return () => sub.remove();
+  }, []);
 
   const all = exercises.flatMap((e) => e.sets);
   const allDone = all.length > 0 && all.every((s) => s.completed);
@@ -246,7 +265,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     if (pr) AccessibilityInfo.announceForAccessibility('Personal record');
     if (!set.completed && alerts().haptics) void (pr ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
     if (!set.completed && !finished) {
-      startTimer(exercise.name, [{ label: 'Rest', seconds: set.rest ?? exercise.rest }]);
+      startTimer(exercise.name, [{ label: 'Rest', seconds: set.rest ?? exercise.rest }], set.id);
       const to = advance(exercises.map((x) => ({ ...x, sets: x.sets.map((s) => (s.id === set.id ? { ...s, completed: true } : s)) })), exercise.id);
       if (to !== exercise.id) {
         advancing.current = setTimeout(() => {
