@@ -6,7 +6,7 @@ Aim for visual density, large editorial type, dark monochrome surfaces, and quic
 
 Dark is the default; a matching light theme ships in the first release. Grayscale intensity carries the heatmap, with text labels that convey the same information. Reserve the strongest contrast for the current action and logged values. Large numbers and short labels should remain legible from arm's length. Use a consistent spacing, type, radius, and motion scale.
 
-Show recorded data as data, never in the control that captured it. A recap or summary uses labels over legible values (caps label, large value), not chips, fields, sliders or radios that look tappable or still editable; the input appears only when the person chooses to edit.
+Show recorded data as data, never in the control that captured it. A recap or summary uses labels over legible values (caps label, large value), not selectable chips, fields, sliders or radios that make it look still editable (read-only set chips in a recap are data); the input appears only when the person chooses to edit.
 
 ## One-page interaction map
 
