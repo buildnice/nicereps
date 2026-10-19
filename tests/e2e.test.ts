@@ -43,6 +43,23 @@ test('data from an earlier app version migrates and its interrupted workout resu
   assert.match(cli('history', 'Back Squat'), new RegExp(`finished  "left knee sore"[\\s\\S]*${set}  normal  110 kg × 3  done`));
 });
 
+test('a finished workout takes a 1 to 5 check-in; older workouts have none and can gain one', () => {
+  const cli = db('v6.sql');
+  assert.doesNotMatch(cli('show', 'aomro3ca58iv9zmyvzzrwa1x').split('\n')[0], /Sleep|Felt|Energy/);
+  cli('finish', 'nm8c0ed82zniwgw2xisacx51');
+  cli('check-in', 'nm8c0ed82zniwgw2xisacx51', 'sleep', '4');
+  cli('check-in', 'nm8c0ed82zniwgw2xisacx51', 'feel', '2');
+  cli('check-in', 'aomro3ca58iv9zmyvzzrwa1x', 'energy', '5');
+  assert.match(cli('show', 'nm8c0ed82zniwgw2xisacx51').split('\n')[0], /finished  "left knee sore"  Sleep 4\/5  Felt 2\/5$/);
+  assert.match(cli('show', 'aomro3ca58iv9zmyvzzrwa1x').split('\n')[0], /finished  Energy 5\/5$/);
+  cli('check-in', 'nm8c0ed82zniwgw2xisacx51', 'sleep');
+  assert.match(cli('show', 'nm8c0ed82zniwgw2xisacx51').split('\n')[0], /"left knee sore"  Felt 2\/5$/);
+  assert.throws(() => cli('check-in', 'nm8c0ed82zniwgw2xisacx51', 'feel', '6'), /Session felt must be 1 to 5/);
+  assert.throws(() => cli('check-in', 'nm8c0ed82zniwgw2xisacx51', 'feel', '2.5'), /Session felt must be 1 to 5/);
+  assert.throws(() => cli('check-in', 'nm8c0ed82zniwgw2xisacx51', 'mood', '3'), /Unknown check-in mood/);
+  assert.throws(() => cli('check-in', 'missing', 'feel', '3'), /Not found|missing/);
+});
+
 test('discarding an interrupted workout removes only that workout', () => {
   const cli = db('v6.sql');
   const before = cli('history');

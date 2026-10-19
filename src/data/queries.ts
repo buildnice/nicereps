@@ -294,6 +294,11 @@ export const setBar = (db: Db, exerciseId: string, bar: number | null, unit: Wei
   db.run('UPDATE exercise SET bar = ?, bar_unit = ? WHERE id = ?', [bar, bar == null ? null : unit, exerciseId]);
 };
 
+export const rateWorkout = (db: Db, id: string, field: 'sleep' | 'feel' | 'energy', value: number | null) => {
+  one(db, 'SELECT id FROM workout WHERE id = ?', [id]);
+  db.run(`UPDATE workout SET ${field} = ? WHERE id = ?`, [value, id]);
+};
+
 export const setNote = (db: Db, table: 'workout' | 'workout_exercise' | 'exercise', id: string, note: string | null) => {
   one(db, `SELECT id FROM ${table} WHERE id = ?`, [id]);
   db.run(`UPDATE ${table} SET note = ? WHERE id = ?`, [note, id]);
@@ -352,7 +357,7 @@ const groupBy = (rows: Row[], key: string) => {
 };
 
 export const workouts = (db: Db, where: string, params: Value[], limit = -1, exercise: string | null = null) => {
-  const rows = db.all(`SELECT id, name, date, time_zone, started_at, finished_at, note FROM workout WHERE ${where} ORDER BY date DESC, started_at DESC LIMIT ?`, [...params, limit]);
+  const rows = db.all(`SELECT id, name, date, time_zone, started_at, finished_at, note, sleep, feel, energy FROM workout WHERE ${where} ORDER BY date DESC, started_at DESC LIMIT ?`, [...params, limit]);
   const ids = JSON.stringify(rows.map((w) => w.id));
   const exerciseRows = db.all(
     'SELECT we.id, we.workout_id, we.exercise_id, e.name, e.mode, e.rest, e.source, e.equipment, e.bar, e.bar_unit, e.note AS exercise_note, we.superset, we.note FROM workout_exercise we JOIN exercise e ON e.id = we.exercise_id WHERE we.workout_id IN (SELECT value FROM json_each(?)) AND (? IS NULL OR e.name = ?) ORDER BY we.position',
@@ -370,6 +375,9 @@ export const workouts = (db: Db, where: string, params: Value[], limit = -1, exe
     startedAt: w.started_at as string,
     finishedAt: w.finished_at as string | null,
     note: w.note as string | null,
+    sleep: w.sleep as number | null,
+    feel: w.feel as number | null,
+    energy: w.energy as number | null,
     exercises: (exercises.get(w.id) ?? []).map((e) => ({
       id: e.id as string,
       exerciseId: e.exercise_id as string,

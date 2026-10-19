@@ -330,7 +330,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     ops.finishWorkout(db, id);
     scheduleTimer(null);
     onExit();
-    router.push({ pathname: '/workout/[id]', params: { id, from: 'Home' } });
+    router.push({ pathname: '/check-in/[id]', params: { id } });
     backup();
     void syncHealth();
   };

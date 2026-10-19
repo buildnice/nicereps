@@ -1,6 +1,6 @@
 appId: com.buildnice.nicereps
 ---
-# Finishes the open workout and lands on its page. The header button scrolls away on short screens.
+# Finishes the open workout, skips the check-in and lands on its page. The header button scrolls away on short screens.
 - scrollUntilVisible:
     element: Finish
     direction: UP
@@ -10,4 +10,6 @@ appId: com.buildnice.nicereps
       visible: .*tap Finish again.*
     commands:
       - tapOn: Finish
+- assertVisible: HOW DID IT GO.*
+- tapOn: Skip
 - assertVisible: "Duration, .*"

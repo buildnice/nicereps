@@ -10,7 +10,7 @@ import { db } from '@/platform/db';
 
 import { MuscleBreakdown, parseDate, Section } from './home';
 import { Page } from './measurements';
-import { clock, describeSet, inUnit, radius, space, Tap, Txt, type, useColors, usePrototype } from './theme';
+import { Choice, clock, describeSet, inUnit, radius, space, Tap, Txt, type, useColors, usePrototype } from './theme';
 
 type Summary = ReturnType<typeof ops.workoutSummary>;
 type Exercise = Summary['exercises'][number];
@@ -35,8 +35,72 @@ export function WorkoutDetail() {
   );
 }
 
+export function CheckInPage() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const c = useColors();
+  const [w] = useState(() => {
+    try {
+      return ops.getWorkout(db, id);
+    } catch {
+      return null;
+    }
+  });
+  const [rating, setRating] = useState<Rating>(() => ratingOf(w));
+  const recap = () => router.replace({ pathname: '/workout/[id]', params: { id, from: 'Home' } });
+  if (!w) return <WorkoutDetail />;
+  return (
+    <Page title="Home" center>
+      <Txt variant="caps" tone="muted" style={{ marginTop: space.l }}>How did it go?</Txt>
+      <Txt variant="title" accessibilityRole="header" style={{ marginTop: space.xs }}>{w.name}</Txt>
+      <CheckIn id={id} rating={rating} onChange={setRating} />
+      <TextInput
+        defaultValue={w.note ?? ''}
+        onChangeText={(t) => ops.noteWorkout(db, id, t)}
+        placeholder="Workout note"
+        placeholderTextColor={c.faint}
+        accessibilityLabel="Workout note"
+        multiline
+        style={[styles.note, { backgroundColor: c.surface, color: c.text }]}
+      />
+      <Tap onPress={recap} style={[styles.action, { marginTop: space.xl, backgroundColor: c.accent }]}>
+        <Txt variant="label" tone="onAccent">Continue</Txt>
+      </Tap>
+      <Tap onPress={recap} style={{ alignSelf: 'center', marginTop: space.s, paddingHorizontal: space.l }}>
+        <Txt variant="label" tone="muted">Skip</Txt>
+      </Tap>
+    </Page>
+  );
+}
+
+type Rating = Pick<Summary, ops.CheckIn>;
+
+const ratingOf = (w: Rating | null): Rating => ({ sleep: w?.sleep ?? null, feel: w?.feel ?? null, energy: w?.energy ?? null });
+
+function CheckIn({ id, rating, onChange }: { id: string; rating: Rating; onChange: (r: Rating) => void }) {
+  return (Object.entries(ops.checkIns) as [ops.CheckIn, (typeof ops.checkIns)[ops.CheckIn]][]).map(([k, { title, low, high }]) => (
+    <View key={k}>
+      <Choice
+        title={title}
+        value={String(rating[k])}
+        options={['1', '2', '3', '4', '5'].map((v) => [v, v, `${title} ${v} of 5${v === '1' ? `, ${low}` : v === '5' ? `, ${high}` : ''}`])}
+        onChange={(v) => {
+          const value = String(rating[k]) === v ? null : Number(v);
+          ops.rateWorkout(db, id, k, value);
+          onChange({ ...rating, [k]: value });
+        }}
+      />
+      <View style={styles.scale}>
+        <Txt variant="small" tone="muted">1 {low}</Txt>
+        <Txt variant="small" tone="muted">5 {high}</Txt>
+      </View>
+    </View>
+  ));
+}
+
 function Detail({ w, from }: { w: Summary; from?: string }) {
   const c = useColors();
+  const [rating, setRating] = useState<Rating>(() => ratingOf(w));
+  const [checking, setChecking] = useState(false);
   const [name, setName] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [keep, setKeep] = useState({ weight: true, reps: true });
@@ -61,6 +125,10 @@ function Detail({ w, from }: { w: Summary; from?: string }) {
       <Txt variant="caps" tone="muted" style={{ marginTop: space.l }}>{date}</Txt>
       <Txt variant="title" accessibilityRole="header" style={{ marginTop: space.xs }}>{w.name}</Txt>
       {!!w.note && <Txt tone="muted" style={{ marginTop: space.s, fontWeight: '400' }}>“{w.note}”</Txt>}
+      <Tap accessibilityLabel={`Check-in: ${ops.checkInLine(rating).join(', ').replaceAll('/5', ' of 5') || 'none'}`} accessibilityHint={checking ? undefined : 'Edits the check-in'} accessibilityState={{ expanded: checking }} onPress={() => setChecking(!checking)} style={{ justifyContent: 'center' }}>
+        <Txt variant="meta" tone="muted">{ops.checkInLine(rating).join(' · ') || 'Add check-in'}</Txt>
+      </Tap>
+      {checking && <CheckIn id={w.id} rating={rating} onChange={setRating} />}
 
       <Tiles w={w} />
       <MusclesWorked muscles={w.muscles} />
@@ -317,6 +385,8 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: space.s, marginTop: space.l },
   action: { minHeight: 56, borderRadius: radius.m, alignItems: 'center' },
   entry: { flexDirection: 'row', gap: space.s, marginTop: space.s },
+  scale: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.xs },
+  note: { borderRadius: radius.s, paddingHorizontal: space.m, minHeight: 44, ...type.input, marginTop: space.xl },
   input: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', borderRadius: radius.s, paddingHorizontal: space.m, minHeight: 48 },
   toggle: { flex: 1, alignItems: 'center', borderRadius: radius.s },
   save: { width: 72, borderRadius: radius.s, alignItems: 'center' },
