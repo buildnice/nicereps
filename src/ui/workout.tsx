@@ -989,6 +989,11 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
   const speed = mode === 'distance' ? set.pace : null;
   const visible = shownFields(set);
   const [picking, setPicking] = useState(false);
+  const rows = (['targetRpe', 'rpe', 'rest'] as const).filter((f) => visible.includes(f));
+  const pick = () => {
+    if (picking && rows.some((f) => f === editing?.field)) onEdit(null);
+    setPicking(!picking);
+  };
   const toggle = (field: OptionalField) => {
     if (editing?.field === field && visible.includes(field)) onEdit(null);
     onChange({ fields: optionalFields.filter((f) => (f === field) !== visible.includes(f)).join(',') });
@@ -1060,7 +1065,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
   return (
     <View style={{ overflow: 'hidden' }}>
       <View style={styles.swipeActions} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <Tap accessibilityLabel={`Set ${n} options`} onPress={() => act(() => setPicking(!picking))} style={[styles.swipeAction, { backgroundColor: c.raised }]}>
+        <Tap accessibilityLabel={`Set ${n} options`} onPress={() => act(pick)} style={[styles.swipeAction, { backgroundColor: c.raised }]}>
           <Icon of={DotsThreeVerticalIcon} />
         </Tap>
         <Tap accessibilityLabel={`Delete set ${n}`} onPress={() => act(onDelete)} style={styles.swipeAction}>
@@ -1076,7 +1081,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
                 accessibilityLabel={`Set ${n}, ${set.type}${mode === 'reps' ? ', change type' : ''}`}
                 accessibilityState={{ expanded: picking }}
                 accessibilityActions={[...(mode === 'reps' ? [{ name: 'activate' }] : []), { name: 'options', label: `${picking ? 'Hide' : 'Choose'} optional fields` }, { name: 'delete', label: 'Delete set' }]}
-                onAccessibilityAction={(event) => act(event.nativeEvent.actionName === 'delete' ? onDelete : event.nativeEvent.actionName === 'options' ? () => setPicking(!picking) : cycle)}
+                onAccessibilityAction={(event) => act(event.nativeEvent.actionName === 'delete' ? onDelete : event.nativeEvent.actionName === 'options' ? pick : cycle)}
                 onPress={mode === 'reps' ? cycle : undefined}
                 hitSlop={8}
                 style={{ width: 28 }}
@@ -1153,37 +1158,38 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
             <Ink fill={fill} at={0.2} from={c.muted} to={soft} variant="meta" style={{ paddingLeft: space.s, paddingBottom: space.s }}>Pace {clock(speed)} /{units.distance}</Ink>
           )}
         </View>
-        {visible.some((f) => f !== 'plates') && (
-          <Animated.View entering={FadeIn.duration(160)} style={styles.options}>
-            {([
-              ['targetRpe', 'Target RPE'],
-              ['rpe', 'RPE'],
-              ['rest', 'Rest'],
-            ] as const).filter(([field]) => visible.includes(field)).map(([field, title]) => (
+        {picking && (rows.length > 0 || visible.includes('comment')) && (
+          <Animated.View entering={FadeIn.duration(160)} style={[styles.group, { backgroundColor: c.line }]}>
+            {rows.map((field) => (
               <Tap
                 key={field}
-                accessibilityLabel={`Set ${n} ${title}, ${shown(field) || (field === 'rest' ? clock(defaultRest) : 'empty')}`}
+                accessibilityLabel={`Set ${n} ${fieldNames[field]}, ${shown(field) || (field === 'rest' ? clock(defaultRest) : 'empty')}`}
                 ref={(node) => { fields.current[field] = node; }}
-              accessibilityState={{ selected: editing?.field === field }}
-              onPress={() => onEdit(field)}
-                style={[styles.option, { backgroundColor: c.raised, alignItems: 'stretch' }, active(field)]}
+                accessibilityState={{ selected: editing?.field === field }}
+                onPress={() => onEdit(field)}
+                style={[styles.option, { backgroundColor: c.raised, borderColor: editing?.field === field ? c.text : 'transparent' }]}
               >
-                <Txt variant="caps" tone="muted" numberOfLines={1} adjustsFontSizeToFit>{title}</Txt>
-                <Txt style={[styles.optionText, { color: shown(field) ? c.text : c.faint }, highlight(field)]}>
+                <Txt variant="label" tone="muted">{fieldNames[field]}</Txt>
+                <Txt variant="label" style={[{ color: shown(field) ? c.text : c.faint }, highlight(field)]}>
                   {shown(field) || (field === 'rest' ? clock(defaultRest) : '–')}
                 </Txt>
               </Tap>
             ))}
-            {visible.includes('comment') && <TextInput
-              defaultValue={set.comment ?? ''}
-              onChangeText={(t) => onChange({ comment: t })}
-              onFocus={() => onEdit(null)}
-              placeholder="Comment"
-              placeholderTextColor={c.faint}
-              accessibilityLabel={`Set ${n} comment`}
-              multiline
-              style={[styles.comment, { color: c.text }]}
-            />}
+            {visible.includes('comment') && (
+              <View style={[styles.commentRow, { backgroundColor: c.raised }]}>
+                <Txt variant="label" tone="muted" accessibilityElementsHidden importantForAccessibility="no">Comment</Txt>
+                <TextInput
+                  defaultValue={set.comment ?? ''}
+                  onChangeText={(t) => onChange({ comment: t })}
+                  onFocus={() => onEdit(null)}
+                  placeholder="Add a comment"
+                  placeholderTextColor={c.faint}
+                  accessibilityLabel={`Set ${n} comment`}
+                  multiline
+                  style={[type.body, styles.commentInput, { color: c.text }]}
+                />
+              </View>
+            )}
           </Animated.View>
         )}
         {picking && (
@@ -1225,9 +1231,10 @@ const styles = StyleSheet.create({
   ring: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: radius.s, borderWidth: 2 },
   check: { width: 22, height: 22, minHeight: 22, borderRadius: radius.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, paddingTop: space.m, paddingBottom: space.m },
-  option: { flexBasis: '30%', flexGrow: 1, borderRadius: radius.s, paddingHorizontal: space.s + 2, paddingVertical: space.s, minHeight: 56 },
-  optionText: { ...type.heading, padding: 0 },
-  comment: { flexBasis: '60%', flexGrow: 2, paddingHorizontal: space.s, paddingVertical: space.s, minHeight: touch.min, ...type.meta, fontWeight: '500' },
+  group: { gap: 1, borderRadius: radius.s, marginTop: space.s, overflow: 'hidden' },
+  option: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: touch.min, paddingHorizontal: space.m - 2, borderWidth: 2 },
+  commentRow: { gap: space.xs, paddingHorizontal: space.m, paddingTop: space.m },
+  commentInput: { minHeight: touch.min, padding: 0, paddingBottom: space.m },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.s },
   maxes: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.xs, paddingVertical: space.s, borderTopWidth: StyleSheet.hairlineWidth },
   action: { flexGrow: 1, minWidth: touch.min, alignItems: 'center', borderRadius: radius.s, borderWidth: 1, borderStyle: 'dashed' },
