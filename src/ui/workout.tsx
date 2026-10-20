@@ -1167,7 +1167,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
                 ref={(node) => { fields.current[field] = node; }}
                 accessibilityState={{ selected: editing?.field === field }}
                 onPress={() => onEdit(field)}
-                style={[styles.option, { backgroundColor: c.raised }, active(field), editing?.field === field && { borderColor: c.text }]}
+                style={[styles.option, { backgroundColor: c.raised, borderColor: editing?.field === field ? c.text : 'transparent' }]}
               >
                 <Txt variant="label" tone="muted">{fieldNames[field]}</Txt>
                 <Txt variant="label" style={[{ color: shown(field) ? c.text : c.faint }, highlight(field)]}>
@@ -1186,7 +1186,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
                   placeholderTextColor={c.faint}
                   accessibilityLabel={`Set ${n} comment`}
                   multiline
-                  style={[type.body, { color: c.text, padding: 0 }]}
+                  style={[type.body, styles.commentInput, { color: c.text }]}
                 />
               </View>
             )}
@@ -1232,8 +1232,9 @@ const styles = StyleSheet.create({
   check: { width: 22, height: 22, minHeight: 22, borderRadius: radius.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, paddingTop: space.m, paddingBottom: space.m },
   group: { gap: 1, borderRadius: radius.s, marginTop: space.s, overflow: 'hidden' },
-  option: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: touch.min, paddingHorizontal: space.m },
-  commentRow: { gap: space.xs, paddingHorizontal: space.m, paddingVertical: space.m },
+  option: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: touch.min, paddingHorizontal: space.m - 2, borderWidth: 2 },
+  commentRow: { gap: space.xs, paddingHorizontal: space.m, paddingTop: space.m },
+  commentInput: { minHeight: touch.min, padding: 0, paddingBottom: space.m },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.s },
   maxes: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.xs, paddingVertical: space.s, borderTopWidth: StyleSheet.hairlineWidth },
   action: { flexGrow: 1, minWidth: touch.min, alignItems: 'center', borderRadius: radius.s, borderWidth: 1, borderStyle: 'dashed' },
