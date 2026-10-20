@@ -131,7 +131,8 @@ function Detail({ w, from }: { w: Summary; from?: string }) {
             {(Object.keys(ops.checkIns) as ops.CheckIn[]).map((k) => (
               <View key={k} style={{ flex: 1 }}>
                 <Txt variant="caps" tone="muted" numberOfLines={1} adjustsFontSizeToFit>{ops.checkIns[k].short}</Txt>
-                <Txt variant="value" tone={rating[k] ? 'text' : 'faint'} style={{ marginTop: space.xs }}>{rating[k] ? `${rating[k]}/5` : '–'}</Txt>
+                <Txt variant="value" tone={rating[k] ? 'text' : 'faint'} style={{ marginTop: space.xs }}>{rating[k] ?? '–'}
+                  {!!rating[k] && <Txt variant="meta" tone="muted">/5</Txt>}</Txt>
               </View>
             ))}
           </View>
