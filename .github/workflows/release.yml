@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tag matches app.json version
+        run: test "${GITHUB_REF_NAME#v}" = "$(jq -r .expo.version app.json)"
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Maestro suite on EAS
+        run: eas workflow:run .eas/workflows/e2e-android.yml --wait --non-interactive
+      - name: Build and submit to Play closed testing
+        run: eas build -p android -e production --auto-submit --wait --non-interactive
+      - name: Build signed APK
+        run: eas build -p android -e apk --wait --non-interactive --json > apk.json
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl -fsSL -o "nicereps-$GITHUB_REF_NAME.apk" "$(jq -r '.[0].artifacts.buildUrl' apk.json)"
+          gh release create "$GITHUB_REF_NAME" "nicereps-$GITHUB_REF_NAME.apk" --verify-tag --generate-notes
