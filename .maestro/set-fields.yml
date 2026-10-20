@@ -1,0 +1,35 @@
+appId: com.buildnice.nicereps
+name: A set's ⋮ shows and hides its optional fields, keeping their values
+---
+- runFlow: common/launch.yml
+- tapOn: Start workout
+- tapOn: Fresh workout
+- runFlow: {file: common/add-exercise.yml, env: {QUERY: Bench Press - Medium, NAME: Barbell Bench Press - Medium Grip}}
+- runFlow: {file: common/set.yml, env: {N: "1", WEIGHT: "90", REPS: "12"}}
+- runFlow: {file: common/expand.yml, env: {NAME: Barbell Bench Press - Medium Grip}}
+- swipe: {from: "Set 1 reps.*", direction: LEFT}
+- tapOn: Set 1 options
+- tapOn: Target RPE
+- tapOn: RPE
+- tapOn: Comment
+- tapOn: "Set 1 RPE, empty"
+- runFlow: {file: common/type.yml, env: {KEYS: "8"}}
+- takeScreenshot: set-fields-editing
+- tapOn: Done
+- tapOn: Set 1 comment
+- inputText: Rip, was hoping for a bit more today
+- hideKeyboard
+- takeScreenshot: set-fields-open
+# Closing with a field still being edited hides it too.
+- tapOn: "Set 1 RPE, 8"
+- swipe: {from: "Set 1 reps.*", direction: LEFT}
+- tapOn: Set 1 options
+- assertNotVisible: "Set 1 RPE.*"
+- assertNotVisible: "Set 1 Target RPE.*"
+- assertNotVisible: Set 1 comment
+- assertNotVisible: Done
+- takeScreenshot: set-fields-closed
+- swipe: {from: "Set 1 reps.*", direction: LEFT}
+- tapOn: Set 1 options
+- assertVisible: "Set 1 RPE, 8"
+- assertVisible: Rip, was hoping for a bit more today
