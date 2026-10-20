@@ -293,6 +293,22 @@ export const unlinkSuperset = (db: Db, workoutExerciseId: string) => transaction
 
 export const noteWorkout = (db: Db, workoutId: string, note: string) => q.setNote(db, 'workout', workoutId, note.trim() || null);
 
+export const checkIns = {
+  sleep: { title: 'Sleep', short: 'Sleep', low: 'Poor', high: 'Great' },
+  feel: { title: 'Session felt', short: 'Feeling', low: 'Very hard', high: 'Very easy' },
+  energy: { title: 'Energy', short: 'Energy', low: 'Drained', high: 'Full' },
+} as const;
+export type CheckIn = keyof typeof checkIns;
+
+export const checkInLine = (w: Partial<Record<CheckIn, number | null>>) =>
+  (Object.keys(checkIns) as CheckIn[]).flatMap((k) => (w[k] ? [`${checkIns[k].short} ${w[k]}/5`] : []));
+
+export const rateWorkout = (db: Db, workoutId: string, field: CheckIn, value: number | null) => {
+  if (!Object.hasOwn(checkIns, field)) throw new Error(`Unknown check-in ${field}; use ${Object.keys(checkIns).join(', ')}`);
+  if (value !== null && !(Number.isInteger(value) && value >= 1 && value <= 5)) throw new Error(`${checkIns[field].title} must be 1 to 5`);
+  q.rateWorkout(db, workoutId, field, value);
+};
+
 export const noteExercise = (db: Db, workoutExerciseId: string, note: string) => q.setNote(db, 'workout_exercise', workoutExerciseId, note.trim() || null);
 
 export const setExerciseNote = (db: Db, exerciseId: string, note: string) => {

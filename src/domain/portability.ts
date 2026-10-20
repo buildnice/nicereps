@@ -263,6 +263,7 @@ const typed = (db: Db, p: Parsed, errors: string[]) => {
         const n = (row[c] = Number(v));
         if (!v.trim() || !Number.isFinite(n) || n < 0 || (info.get(c) === 'INTEGER' && !Number.isInteger(n))) return [`${c} must be a non-negative ${info.get(c) === 'INTEGER' ? 'whole ' : ''}number`];
         if (/rpe$/.test(c) && (n < 1 || n > 10)) return [`${c} must be between 1 and 10`];
+        if (p.table === 'workout' && ['sleep', 'feel', 'energy'].includes(c) && (n < 1 || n > 5)) return [`${c} must be between 1 and 5`];
       }
       if ((c === 'id' || c === 'superset' || c.endsWith('_id')) && !isCuid(v)) return [`${c} is not a valid ID`];
       if (c === 'fields' && v && !v.split(',').every((f) => (optionalFields as readonly string[]).includes(f))) return [`${c} must list only: ${optionalFields.join(', ')}`];

@@ -1,0 +1,29 @@
+appId: com.buildnice.nicereps
+name: The check-in after Finish saves at once and is editable on the workout page
+---
+- runFlow: common/launch.yml
+- tapOn: Start workout
+- tapOn: Fresh workout
+- runFlow: {file: common/add-exercise.yml, env: {QUERY: Bench Press - Medium, NAME: Barbell Bench Press - Medium Grip}}
+- runFlow: {file: common/set.yml, env: {N: "1", WEIGHT: "60", REPS: "5"}}
+- scrollUntilVisible:
+    element: Finish
+    direction: UP
+- tapOn: Finish
+- assertVisible: HOW DID IT GO.*
+- tapOn: Sleep 4 of 5.*
+- tapOn: Session felt 2 of 5
+- tapOn: Workout note
+- inputText: Slept badly
+- hideKeyboard
+# Leaving without Continue keeps every answer.
+- stopApp
+- launchApp
+- scrollUntilVisible:
+    element: "Workout, .* sets?"
+- tapOn: "Workout, .* sets?"
+- assertVisible: "Check-in: Sleep 4 of 5, Feeling 2 of 5"
+- assertVisible: .*Slept badly.*
+- tapOn: "Check-in: .*"
+- tapOn: Energy 5 of 5.*
+- assertVisible: "Check-in: Sleep 4 of 5, Feeling 2 of 5, Energy 5 of 5"

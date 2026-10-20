@@ -171,16 +171,17 @@ export function Tap({ style, ...props }: PressableProps & { style?: StyleProp<Vi
   );
 }
 
-export function Choice<T extends string | boolean>({ title, value, options, onChange }: { title: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
+export function Choice<T extends string | boolean>({ title, value, options, onChange }: { title: string; value: T; options: [T, string, string?][]; onChange: (v: T) => void }) {
   const c = useColors();
   return (
     <View style={{ marginTop: space.xl }}>
       <Txt variant="caps" tone="muted">{title}</Txt>
       <View accessibilityRole="radiogroup" accessibilityLabel={title} style={{ flexDirection: 'row', gap: space.s, marginTop: space.s }}>
-        {options.map(([option, label]) => (
+        {options.map(([option, label, spoken]) => (
           <Tap
             key={label}
             accessibilityRole="radio"
+            accessibilityLabel={spoken}
             accessibilityState={{ checked: option === value }}
             onPress={() => onChange(option)}
             style={{ flex: 1, alignItems: 'center', borderRadius: radius.s, backgroundColor: option === value ? c.accent : c.raised }}

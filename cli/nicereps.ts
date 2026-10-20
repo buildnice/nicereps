@@ -36,6 +36,7 @@ const usage = `Usage: nicereps <db-file> <command> [args]
   superset <workout-exercise> <workout-exercise>
   unlink <workout-exercise>
   note <workout> <text>
+  check-in <workout> <sleep|feel|energy> [1-5]  rate the session 1 to 5; omit the value to clear
   note-exercise <workout-exercise> <text>  this workout's note on the exercise
   exercise-note <exercise> [text]       the exercise's own note, shown in every workout and template; omit text to clear
   finish <workout>
@@ -138,6 +139,7 @@ const required: Record<string, number> = {
   superset: 2,
   unlink: 1,
   note: 2,
+  'check-in': 2,
   'note-exercise': 2,
   'exercise-note': 1,
   finish: 1,
@@ -239,7 +241,7 @@ const extras = (s: SetFields) =>
     .map((x) => `  ${x}`)
     .join('');
 const showWorkout = (w: ReturnType<typeof ops.getWorkout>, suggest?: (exercise: string) => ReturnType<typeof ops.suggest>, prs?: Set<string>) => {
-  console.log(`${w.id}  ${w.name}  ${w.date} (${w.timeZone})  ${w.finishedAt ? 'finished' : 'in progress'}${w.note ? `  "${w.note}"` : ''}`);
+  console.log(`${w.id}  ${w.name}  ${w.date} (${w.timeZone})  ${w.finishedAt ? 'finished' : 'in progress'}${w.note ? `  "${w.note}"` : ''}${ops.checkInLine(w).map((x) => `  ${x}`).join('')}`);
   for (const e of w.exercises) {
     const muscles = e.mapping.map((m) => (m.role === 'primary' ? m.muscle : `${m.muscle}/2`)).join(', ');
     console.log(`  ${e.id}  ${e.name}  ${e.mode}  [${muscles}]${e.superset ? `  superset ${e.superset.slice(0, 6)}` : ''}${e.note ? `  "${e.note}"` : ''}`);
@@ -375,6 +377,9 @@ try {
       break;
     case 'note':
       ops.noteWorkout(db, args[0], args.slice(1).join(' '));
+      break;
+    case 'check-in':
+      ops.rateWorkout(db, args[0], args[1] as ops.CheckIn, args[2] === undefined ? null : Number(args[2]));
       break;
     case 'note-exercise':
       ops.noteExercise(db, args[0], args.slice(1).join(' '));
