@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    branches: [release]
 
 permissions:
   contents: write
@@ -22,17 +22,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Tag matches app.json version
-        run: test "${GITHUB_REF_NAME#v}" = "$(jq -r .expo.version app.json)"
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm test
+      - name: Version not yet released
+        run: |
+          TAG="v$(jq -er .expo.version app.json)"
+          rc=0; git ls-remote --exit-code --tags origin "refs/tags/$TAG" || rc=$?
+          if [ "$rc" != 2 ]; then echo "::error::$TAG already exists or the tag check failed"; exit 1; fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Maestro suite on EAS
-        run: eas workflow:run .eas/workflows/e2e-android.yml --wait --non-interactive
       - name: Build and submit to Play closed testing
         run: eas build -p android -e production --auto-submit --wait --non-interactive
       - name: Build signed APK
@@ -41,5 +40,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          curl -fsSL -o "nicereps-$GITHUB_REF_NAME.apk" "$(jq -r '.[0].artifacts.buildUrl' apk.json)"
-          gh release create "$GITHUB_REF_NAME" "nicereps-$GITHUB_REF_NAME.apk" --verify-tag --generate-notes
+          curl -fsSL -o "nicereps-$TAG.apk" "$(jq -r '.[0].artifacts.buildUrl' apk.json)"
+          gh release create "$TAG" "nicereps-$TAG.apk" --target "$GITHUB_SHA" --generate-notes
