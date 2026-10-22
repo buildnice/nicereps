@@ -14,7 +14,7 @@ concurrency:
 jobs:
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -24,8 +24,9 @@ jobs:
       - run: npm ci
       - name: Version not yet released
         run: |
-          TAG="v$(jq -r .expo.version app.json)"
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG"; then echo "::error::$TAG already exists; bump the version in app.json"; exit 1; fi
+          TAG="v$(jq -er .expo.version app.json)"
+          rc=0; git ls-remote --exit-code --tags origin "refs/tags/$TAG" || rc=$?
+          if [ "$rc" != 2 ]; then echo "::error::$TAG already exists or the tag check failed"; exit 1; fi
           echo "TAG=$TAG" >> "$GITHUB_ENV"
       - uses: expo/expo-github-action@v8
         with:
