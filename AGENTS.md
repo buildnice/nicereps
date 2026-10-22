@@ -25,6 +25,7 @@ The requested [Expo](https://github.com/expo/skills) and [Emil Kowalski](https:/
 ## Proof for each PR
 
 - Run the narrowest relevant domain or CLI test, then the repository's current type, lint, and test gates.
+- A PR that changes a screen covered by `.maestro/` updates the flow and runs it locally against a release build (see ARCHITECTURE.md).
 - Demonstrate changed behavior at its real surface: CLI output for domain/CLI work; same-state screenshots from a running app for UI work; device evidence for timers, notifications, sharing, and native storage.
 - Exercise offline mode, process restart, empty data, old data, and import failure when relevant. Prove that an interrupted workout resumes.
 - Report the tested commit, commands, expected and observed result, and any unproven case. A green test without surface proof is insufficient for UI or native behavior.
