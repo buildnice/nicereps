@@ -420,6 +420,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
         ref={scroll}
         onScroll={(event) => (offset.current = event.nativeEvent.contentOffset.y)}
         scrollEventThrottle={64}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: insets.bottom + space.xxl + dockHeight + (edit ? sheetHeight : 0) }}
       >
       <View style={[styles.header, large && { flexWrap: 'wrap', justifyContent: 'space-between' }]}>
@@ -989,17 +990,17 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
   const speed = mode === 'distance' ? set.pace : null;
   const visible = shownFields(set);
   const [picking, setPicking] = useState(false);
-  const [focus, setFocus] = useState<OptionalField | null>(null);
+  const [focus, setFocus] = useState(false);
   const pick = () => {
-    if (picking && (['targetRpe', 'rpe', 'rest'] as Editable[]).includes(editing?.field as Editable)) onEdit(null);
-    setFocus(null);
+    if (picking && (editing?.field === 'targetRpe' || editing?.field === 'rpe' || editing?.field === 'rest')) onEdit(null);
+    setFocus(false);
     setPicking(!picking);
   };
   const toggle = (field: OptionalField) => {
     const on = !visible.includes(field);
     if (!on && editing?.field === field) onEdit(null);
     onChange({ fields: optionalFields.filter((f) => (f === field) !== visible.includes(f)).join(',') });
-    setFocus(on ? field : null);
+    setFocus(on && field === 'comment');
     if (on && field !== 'comment' && field !== 'plates') onEdit(field);
   };
   const weight = editing?.field === 'weight' ? Number(editing.text) || 0 : set.weight;
@@ -1176,7 +1177,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
                     style={styles.option}
                   >
                     <Txt variant="label" tone={on ? undefined : 'muted'}>{fieldNames[field]}</Txt>
-                    <View style={[styles.toggle, { backgroundColor: on ? c.accent : c.line }]}>
+                    <View style={[styles.toggle, { backgroundColor: on ? c.accent : c.surface }]}>
                       <Txt variant="small" tone={on ? 'onAccent' : 'muted'} style={{ fontWeight: '700' }}>{on ? 'On' : 'Off'}</Txt>
                     </View>
                   </Tap>
@@ -1185,7 +1186,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
                       defaultValue={set.comment ?? ''}
                       onChangeText={(t) => onChange({ comment: t })}
                       onFocus={() => onEdit(null)}
-                      autoFocus={focus === 'comment'}
+                      autoFocus={focus}
                       placeholder="Add a comment"
                       placeholderTextColor={c.faint}
                       accessibilityLabel={`Set ${n} comment`}
