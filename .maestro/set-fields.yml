@@ -19,7 +19,7 @@ name: A set's ⋮ shows and hides its optional field switches, keeping their val
 - takeScreenshot: set-fields-editing
 - tapOn: Done
 - tapOn: Set 1 Comment
-- inputText: Rip, was hoping for a bit more today
+- inputText: Sluggish
 - hideKeyboard
 - takeScreenshot: set-fields-open
 # Closing with a field still being edited hides it too.
@@ -35,4 +35,4 @@ name: A set's ⋮ shows and hides its optional field switches, keeping their val
 - swipe: {from: "Set 1 reps.*", direction: LEFT}
 - tapOn: Set 1 options
 - assertVisible: "Set 1 RPE, 8"
-- assertVisible: Rip, was hoping for a bit more today
+- assertVisible: Sluggish
