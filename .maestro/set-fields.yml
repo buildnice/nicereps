@@ -1,5 +1,5 @@
 appId: com.buildnice.nicereps
-name: A set's ⋮ shows and hides its optional fields, keeping their values
+name: A set's ⋮ shows and hides its optional field switches, keeping their values
 ---
 - runFlow: common/launch.yml
 - tapOn: Start workout
@@ -9,14 +9,16 @@ name: A set's ⋮ shows and hides its optional fields, keeping their values
 - runFlow: {file: common/expand.yml, env: {NAME: Barbell Bench Press - Medium Grip}}
 - swipe: {from: "Set 1 reps.*", direction: LEFT}
 - tapOn: Set 1 options
-- tapOn: Target RPE
-- tapOn: RPE
-- tapOn: Comment
-- tapOn: "Set 1 RPE, empty"
+- tapOn: Set 1 Target RPE
+- assertVisible: {text: "Set 1 Target RPE, empty", selected: true}
+- tapOn: Done
+- tapOn: Set 1 RPE
+# Switching a field on focuses its input.
+- assertVisible: {text: "Set 1 RPE, empty", selected: true}
 - runFlow: {file: common/type.yml, env: {KEYS: "8"}}
 - takeScreenshot: set-fields-editing
 - tapOn: Done
-- tapOn: Set 1 comment
+- tapOn: Set 1 Comment
 - inputText: Rip, was hoping for a bit more today
 - hideKeyboard
 - takeScreenshot: set-fields-open
@@ -27,6 +29,7 @@ name: A set's ⋮ shows and hides its optional fields, keeping their values
 - assertNotVisible: "Set 1 RPE.*"
 - assertNotVisible: "Set 1 Target RPE.*"
 - assertNotVisible: Set 1 comment
+- assertNotVisible: Set 1 Comment
 - assertNotVisible: Done
 - takeScreenshot: set-fields-closed
 - swipe: {from: "Set 1 reps.*", direction: LEFT}
