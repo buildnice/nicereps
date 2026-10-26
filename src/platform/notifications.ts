@@ -87,6 +87,8 @@ async function remind(reminders: Reminder[]) {
 
 async function apply(timer: Timer | null, ask: boolean) {
   await cancel('timer-');
+  for (const n of await Notifications.getPresentedNotificationsAsync())
+    if (n.request.identifier.startsWith('timer-')) await Notifications.dismissNotificationAsync(n.request.identifier);
   if (!timer || !(await allowed(ask))) return;
   if (Platform.OS === 'android' && Platform.Version >= 34 && !readSetting('exactAlarmAsked') && !countdown?.exact()) {
     writeSetting('exactAlarmAsked', '1');
