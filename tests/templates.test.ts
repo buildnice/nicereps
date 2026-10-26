@@ -15,7 +15,7 @@ const setup = () => {
 test('editing a template changes future uses only', () => {
   const { db, ids, pushA } = setup();
   const started = ops.startWorkout(db, { templateId: pushA });
-  ops.correctSet(db, ops.getWorkout(db, started).exercises[0].sets[1].id, { completed: true });
+  ops.correctSet(db, ops.getWorkout(db, started).exercises[0].sets[1].id, { reps: 8, completed: true });
   const before = [...ids, started].map((id) => ops.getWorkout(db, id));
 
   const plan = ops.getTemplate(db, pushA);
@@ -42,7 +42,7 @@ test('a finished workout becomes an independent template with its targets', () =
   const w = ops.startWorkout(db, { fromWorkoutId: ids[3] });
   const [bench, press, fly] = ops.getWorkout(db, w).exercises;
   ops.linkSuperset(db, press.id, fly.id);
-  ops.correctSet(db, bench.sets[1].id, { targetRpe: 8, rpe: 9, rest: 200, comment: 'grind', options: true, completed: true });
+  ops.correctSet(db, bench.sets[1].id, { reps: 8, targetRpe: 8, rpe: 9, rest: 200, comment: 'grind', options: true, completed: true });
   const run = ops.addExercise(db, w, exerciseId(db, 'Run'));
   ops.addSet(db, run, { distance: 5, duration: 1500 });
   assert.throws(() => ops.templateFromWorkout(db, w), /Finish/);
@@ -74,12 +74,15 @@ test('template names are required and unique', () => {
   assert.deepEqual(ops.listTemplates(db).map((t) => [t.name, t.count]), [['Legs', 2], ['Pull B', 2], ['Push A', 0]]);
 });
 
-test('template reps become targets: a ticked blank set logs the target, typed reps win, and saving can drop weight or reps', () => {
+test('template reps become targets: a blank set needs reps to be ticked, a typed 0 is kept, and saving can drop weight or reps', () => {
   const { db, pushA } = setup();
   const w = ops.startWorkout(db, { templateId: pushA });
   const [a, b, c] = ops.getWorkout(db, w).exercises[0].sets;
   assert.deepEqual([a.reps, a.targetReps, b.targetReps], [0, 10, 8]);
-  ops.correctSet(db, b.id, { completed: true });
+  const pick = (s: { reps: number; repsEntered?: boolean; completed: boolean }) => [s.reps, s.repsEntered, s.completed];
+  assert.equal(a.repsEntered, false);
+  assert.throws(() => ops.correctSet(db, b.id, { completed: true }), /Enter reps/);
+  ops.correctSet(db, b.id, { reps: 8, completed: true });
   ops.correctSet(db, c.id, { reps: 6 });
   ops.correctSet(db, c.id, { completed: true });
   const added = ops.addSet(db, ops.getWorkout(db, w).exercises[0].id);
@@ -87,9 +90,11 @@ test('template reps become targets: a ticked blank set logs the target, typed re
   assert.deepEqual(sets.map((s) => [s.reps, s.targetReps]).slice(1, 3), [[8, 8], [6, 8]]);
   assert.deepEqual([sets.at(-1)!.reps, sets.at(-1)!.targetReps], [0, 8]);
   assert.throws(() => ops.correctSet(db, added, { targetReps: 1.5 }), /Weight and reps/);
-  ops.correctSet(db, added, { completed: true });
+  assert.throws(() => ops.correctSet(db, added, { completed: true }), /Enter reps/);
+  ops.correctSet(db, added, { reps: 0, completed: true });
+  assert.deepEqual(pick(ops.getWorkout(db, w).exercises[0].sets.at(-1)!), [0, true, true]);
   ops.correctSet(db, added, { completed: false });
-  assert.equal(ops.getWorkout(db, w).exercises[0].sets.at(-1)!.reps, 0);
+  assert.deepEqual(pick(ops.getWorkout(db, w).exercises[0].sets.at(-1)!), [0, true, false]);
   ops.correctSet(db, a.id, { fields: 'rpe' });
   ops.correctSet(db, b.id, { fields: '' });
   ops.finishWorkout(db, w);

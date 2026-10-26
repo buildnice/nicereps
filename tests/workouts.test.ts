@@ -79,7 +79,7 @@ test('corrections update totals', () => {
   const { db, pushA, legs } = setup();
   const [bench, press] = pushA.exercises;
   correctSet(db, bench.sets[0].id, { type: 'normal' });
-  correctSet(db, press.sets[2].id, { completed: true });
+  correctSet(db, press.sets[2].id, { reps: 8, completed: true });
   moveWorkout(db, legs, '2026-10-06');
   assert.deepEqual(totals(db), { back: 6, chest: 6, shoulders: 5, biceps: 3, triceps: 3.5 });
 });
@@ -340,7 +340,7 @@ test('a missed target, a blank target or an incomplete set suggests no increase;
   const [bench, press, fly] = pushA2.exercises;
   correctSet(db, bench.sets[3].id, { reps: 7 });
   correctSet(db, press.sets[0].id, { targetReps: null });
-  for (const s of fly.sets) correctSet(db, s.id, { unit: 'lb', completed: true });
+  for (const s of fly.sets) correctSet(db, s.id, { unit: 'lb', reps: s.targetReps!, completed: true });
   assert.deepEqual(hints(db), [['Bench Press', [null, null, null, null]], ['Overhead Press', [null, null, null]], ['Cable Fly', [20, 15]]]);
   correctSet(db, bench.sets[3].id, { reps: 8, completed: false });
   assert.deepEqual(hints(db)[0], ['Bench Press', [null, null, null, null]]);

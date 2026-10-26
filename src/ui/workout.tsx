@@ -260,7 +260,12 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   if (cta === 'show' && !allDone) setCta('spent');
   const update = (set: string, patch: Partial<SetFields>) => run(() => ops.correctSet(db, set, patch));
 
+  const [missing, setMissing] = useState<string | null>(null);
   const complete = (exercise: (typeof exercises)[number], set: LoggedSet) => {
+    if (!set.completed && exercise.mode === 'reps' && !set.repsEntered) {
+      setMissing(set.id);
+      return AccessibilityInfo.announceForAccessibility(needReps);
+    }
     update(set.id, { completed: !set.completed });
     const pr = !set.completed && ops.prSets(db, ops.getWorkout(db, id)).has(set.id);
     if (pr) AccessibilityInfo.announceForAccessibility('Personal record');
@@ -599,6 +604,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                 kit={kit}
                 usual={exercise.mode === 'reps' ? usual : undefined}
                 flagged={flagged.includes(set.id) && !set.completed}
+                missing={missing === set.id && !set.repsEntered}
               />,
             ])}
             {deleted?.workoutExerciseId === exercise.id && deleted.position >= exercise.sets.length && <Undo onUndo={() => undo(deleted)} />}
@@ -690,7 +696,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
               if (!edit || (!editing && edit.field !== 'bar')) return false;
               const field = edit.field;
               const v = field === 'bodyWeight' || field === 'bar' ? parse(draft.text) : entered(field, draft.text);
-              const error = field === 'bar' ? attempt(() => run(() => ops.setBar(db, edit.set, v ?? null, units.weight))) : field === 'bodyWeight' ? attempt(() => v != null && (run(() => measures.logBodyWeight(db, v, workout.date)), setKgOn(measures.bodyWeight(db, workout.date)))) : attempt(() => update(edit.set, { [field]: field === 'weight' || field === 'reps' ? (v ?? 0) : (v ?? null), ...(field === 'weight' && { unit: units.weight }), ...(field === 'distance' && { distanceUnit: units.distance }) }));
+              const error = field === 'bar' ? attempt(() => run(() => ops.setBar(db, edit.set, v ?? null, units.weight))) : field === 'bodyWeight' ? attempt(() => v != null && (run(() => measures.logBodyWeight(db, v, workout.date)), setKgOn(measures.bodyWeight(db, workout.date)))) : attempt(() => update(edit.set, { [field]: field === 'weight' || field === 'reps' ? (v ?? 0) : (v ?? null), ...(field === 'reps' && { repsEntered: v != null }), ...(field === 'weight' && { unit: units.weight }), ...(field === 'distance' && { distanceUnit: units.distance }) }));
               setEdit((e) => e && (error ? { ...e, error } : { ...e, ...draft, error: undefined }));
               if (error) AccessibilityInfo.announceForAccessibility(error);
               return !error;
@@ -952,6 +958,7 @@ type SetRowProps = {
   kit?: Kit;
   usual?: SetFields[][];
   flagged: boolean;
+  missing: boolean;
 };
 
 const ACTIONS = 112;
@@ -960,6 +967,7 @@ const popIn = new Keyframe({
   55: { opacity: 1, transform: [{ scale: 1.12 }], easing: Easing.bezier(0.23, 1, 0.32, 1) },
   100: { transform: [{ scale: 1 }], easing: Easing.bezier(0.77, 0, 0.175, 1) },
 }).duration(320).delay(160);
+const needReps = 'Enter reps to complete this set, 0 if none';
 const fieldNames: Record<OptionalField, string> = { targetRpe: 'Target RPE', rpe: 'RPE', rest: 'Rest', comment: 'Comment', plates: 'Plates' };
 
 export const setLabel = (sets: { type: string }[], j: number) =>
@@ -976,7 +984,7 @@ function Undo({ onUndo }: { onUndo: () => void }) {
   );
 }
 
-function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, onComplete, onChange, editing, onEdit, onReveal, bodyWeight, kit, usual, flagged }: SetRowProps) {
+function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, onComplete, onChange, editing, onEdit, onReveal, bodyWeight, kit, usual, flagged, missing }: SetRowProps) {
   const fields = useRef<Partial<Record<Editable, View | null>>>({});
   const editingField = editing?.field;
   useEffect(() => {
@@ -1012,7 +1020,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
   const x = useSharedValue(0);
   const slide = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
   const reduce = useReducedMotion();
-  const warnings = [oddText, flagged && 'Not completed · tap Finish again to finish anyway'].filter((w): w is string => !!w);
+  const warnings = [oddText, missing && needReps, flagged && 'Not completed · tap Finish again to finish anyway'].filter((w): w is string => !!w);
   const glow = useSharedValue(1);
   const pulse = useAnimatedStyle(() => ({ opacity: glow.get() }));
   const warned = warnings.join();
@@ -1059,7 +1067,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
   const active = (field: Editable) => editing?.field === field && { borderWidth: 2, borderColor: ink || c.text };
   const highlight = (field: Field) => editing?.field === field && editing.fresh && (ink ? { backgroundColor: ink } : { backgroundColor: c.line });
   const target = (field: Field) =>
-    editing?.field === field ? null : field === 'reps' && !set.reps && !set.completed && set.targetReps ? String(set.targetReps) : field === 'weight' && !set.weight && bodyWeight !== undefined ? 'BW' : null;
+    editing?.field === field ? null : field === 'reps' && !set.repsEntered && !set.completed ? String(set.targetReps ?? 0) : field === 'weight' && !set.weight && bodyWeight !== undefined ? 'BW' : null;
   const cycle = () => onChange({ type: nextType[set.type] });
   const copy = (p: SetFields) => {
     onEdit(null);
@@ -1095,13 +1103,13 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
               {modeFields[mode].map(([field, fieldUnit], i, all) => (
                 <Tap
                   key={field}
-                  accessibilityLabel={`Set ${n} ${field}, ${shown(field) || 0}${target(field) ? `, ${field === 'weight' ? 'body weight only' : `target ${target(field)}`}` : ''}`}
+                  accessibilityLabel={`Set ${n} ${field}, ${shown(field) || 0}${target(field) ? `, ${field === 'weight' ? 'body weight only' : set.targetReps ? `target ${target(field)}` : 'not entered'}` : ''}`}
                   ref={(node) => { fields.current[field] = node; }}
                   accessibilityState={{ selected: editing?.field === field }}
                   onPress={() => onEdit(field)}
                   style={[styles.field, { backgroundColor: set.completed ? 'transparent' : c.raised }, active(field)]}
                 >
-                  {odd?.field === field && <Animated.View pointerEvents="none" style={[styles.ring, { borderColor: c.warning }, pulse]} />}
+                  {(odd?.field === field || (missing && field === 'reps')) && <Animated.View pointerEvents="none" style={[styles.ring, { borderColor: c.warning }, pulse]} />}
                   <Ink fill={fill} at={(i + 1) / (all.length + 1)} from={target(field) ? c.faint : c.text} to={ink && highlight(field) ? c.text : target(field) ? soft : c.bg} variant="value" numberOfLines={1} adjustsFontSizeToFit style={[styles.fieldText, highlight(field)]}>{target(field) ?? (shown(field) || '0')}</Ink>
                   {target(field) !== 'BW' && <Ink fill={fill} at={(i + 1) / (all.length + 1)} from={c.muted} to={soft} variant="small" style={{ fontWeight: '600' }}>{field === 'weight' ? units.weight : field === 'distance' ? units.distance : fieldUnit}</Ink>}
                 </Tap>

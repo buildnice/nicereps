@@ -87,6 +87,22 @@ test('step 3 slice 2 database gains the catalog and keeps its data', () => {
   ].sort((a, b) => a.role.localeCompare(b.role) || a.muscle.localeCompare(b.muscle)));
 });
 
+test('the reps_entered step marks only incomplete 0-rep sets as not entered', () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'nicereps-')), 'reps.sqlite');
+  openDb(file);
+  const v19 = new DatabaseSync(file);
+  v19.exec(`ALTER TABLE workout_set DROP COLUMN reps_entered;
+    PRAGMA user_version = ${migrations.length - 1};
+    INSERT INTO exercise (id, name, rest) VALUES ('mine', 'Squat', 90);
+    INSERT INTO workout (id, name, date, time_zone, started_at) VALUES ('w', 'Workout', '2026-10-09', 'UTC', '2026-10-09T00:00:00Z');
+    INSERT INTO workout_exercise (id, workout_id, exercise_id, position) VALUES ('we', 'w', 'mine', 0);
+    INSERT INTO workout_set (id, workout_exercise_id, position, type, weight, reps, target_reps, completed) VALUES
+      ('blank', 'we', 0, 'normal', 100, 0, 5, 0), ('typed', 'we', 1, 'normal', 100, 4, 5, 0), ('failed', 'we', 2, 'normal', 100, 0, NULL, 1)`);
+  v19.close();
+  const db = openDb(file);
+  assert.deepEqual(getWorkout(db, 'w').exercises[0].sets.map((s) => [s.id, s.reps, s.repsEntered]), [['blank', 0, false], ['typed', 4, true], ['failed', 0, true]]);
+});
+
 test('exercise search matches every word, lists custom exercises first and treats wildcards literally', () => {
   const db = openDb(':memory:');
   createExercise(db, 'Zercher Bench 100%', []);
