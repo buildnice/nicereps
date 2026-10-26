@@ -462,7 +462,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
         const phases = !target ? [] : exercise.mode === 'interval' ? intervalPhases(target) : exercise.mode === 'duration' && target.duration ? [{ label: 'Countdown', seconds: target.duration }] : [];
         if (open !== exercise.id) {
           return (
-            <Tap key={exercise.id} onPress={() => show(exercise.id)} style={[styles.card, styles.collapsed, { backgroundColor: c.surface }, exercise.superset && { borderLeftWidth: 3, borderLeftColor: c.faint }]}>
+            <Tap key={exercise.id} onPress={() => { setArrived(exercise.id); show(exercise.id); }} style={[styles.card, styles.collapsed, { backgroundColor: c.surface }, exercise.superset && { borderLeftWidth: 3, borderLeftColor: c.faint }]}>
               <View style={{ flex: 1 }}>
                 <Txt variant="heading">{exercise.name}</Txt>
                 {!!exercise.exerciseNote && <Txt variant="meta" tone="muted" style={{ fontWeight: '500' }}>{exercise.exerciseNote}</Txt>}
