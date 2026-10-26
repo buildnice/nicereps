@@ -12,8 +12,8 @@ name: Editing a completed set's rest retimes the running rest
     from: "Set 1 reps.*"
     direction: LEFT
 - tapOn: Set 1 options
-- tapOn: Rest
-- tapOn: "Set 1 Rest, 2:00"
+- tapOn: Set 1 Rest
+- assertVisible: {text: "Set 1 Rest, 2:00", selected: true}
 - runFlow: {file: common/type.yml, env: {KEYS: "300"}}
 - tapOn: Done
 # The new length counts from the completion; the screenshot shows the time already spent kept.
