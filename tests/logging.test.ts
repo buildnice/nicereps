@@ -42,7 +42,7 @@ test('one workout mixes all five modes and keeps every field', () => {
   assert.equal(done.exercises[0].note, 'elbows in');
   assert.deepEqual(
     { ...done.exercises[0].sets[1], id: undefined },
-    { id: undefined, type: 'normal', weight: 85, unit: 'kg', reps: 8, targetReps: 10, completed: true, duration: null, distance: null, distanceUnit: 'km', rounds: null, recovery: null, rest: 180, targetRpe: 8, rpe: 8.5, comment: 'paused', options: null, fields: null },
+    { id: undefined, type: 'normal', weight: 85, unit: 'kg', reps: 8, repsEntered: true, targetReps: 10, completed: true, duration: null, distance: null, distanceUnit: 'km', rounds: null, recovery: null, rest: 180, targetRpe: 8, rpe: 8.5, comment: 'paused', options: null, fields: null },
   );
   assert.deepEqual(done.exercises.slice(1).map((e) => e.sets[0].completed), [true, true, true, true]);
   assert.equal(pace(1500, 5), 300);
@@ -70,7 +70,7 @@ test('step 2 database migrates with its data intact', () => {
   const w = ops.getWorkout(db, 'w1');
   assert.deepEqual([w.exercises[0].mode, w.exercises[0].rest, w.exercises[0].superset, w.note], ['reps', 120, null, null]);
   assert.deepEqual(w.exercises[0].sets[0], {
-    id: 's1', type: 'normal', weight: 80, unit: 'kg', reps: 8, targetReps: null, completed: true,
+    id: 's1', type: 'normal', weight: 80, unit: 'kg', reps: 8, repsEntered: true, targetReps: null, completed: true,
     duration: null, distance: null, distanceUnit: 'km', rounds: null, recovery: null, rest: null, targetRpe: null, rpe: null, comment: null, options: null, fields: null,
   });
   assert.deepEqual(ops.getTemplate(db, 't1').exercises, [{

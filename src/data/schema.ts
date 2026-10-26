@@ -152,6 +152,7 @@ export const migrations: (string[] | ((db: Db) => void))[] = [
   ["CREATE TABLE health_record (id TEXT PRIMARY KEY NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('workout', 'weight', 'read')), hash TEXT NOT NULL)"],
   ['ALTER TABLE exercise ADD COLUMN equipment TEXT'],
   ['sleep', 'feel', 'energy'].map((column) => `ALTER TABLE workout ADD COLUMN ${column} INTEGER CHECK (${column} BETWEEN 1 AND 5)`),
+  ['ALTER TABLE workout_set ADD COLUMN reps_entered INTEGER NOT NULL DEFAULT 1 CHECK (reps_entered IN (0, 1))', 'UPDATE workout_set SET reps_entered = 0 WHERE completed = 0 AND reps = 0'],
 ];
 
 export const migrate = (db: Db) => {

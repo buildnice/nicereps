@@ -68,7 +68,7 @@ test('the export archive holds every row of every table, a manifest and every ph
   const manifest = JSON.parse(strFromU8(files['manifest.json']));
   assert.deepEqual(
     { ...manifest, tables: undefined },
-    { format: 'nicereps', version: 1, schema: 19, exportedAt: '2026-10-11T00:00:00.000Z', tables: undefined, photos: ['a.jpg', 'b.jpg'] },
+    { format: 'nicereps', version: 1, schema: 20, exportedAt: '2026-10-11T00:00:00.000Z', tables: undefined, photos: ['a.jpg', 'b.jpg'] },
   );
   assert.equal(manifest.tables.photo, 4);
   assert.equal(Object.keys(files).length, tables.length + 3);
@@ -228,6 +228,26 @@ test('skipping a changed exercise keeps its local muscle mapping; replace restor
   assert.deepEqual(records(db), original);
 });
 
+test('a typed 0 travels in workout_set.csv; an older export without reps_entered treats an incomplete 0 as blank', async () => {
+  const db = clean();
+  const [typed, blank, done] = db.all('SELECT id FROM workout_set ORDER BY rowid LIMIT 3').map((r) => r.id as string);
+  db.run('UPDATE workout_set SET reps = 0, completed = 0, reps_entered = 1 WHERE id = ?', [typed]);
+  db.run('UPDATE workout_set SET reps = 0, completed = 0, reps_entered = 0 WHERE id = ?', [blank]);
+  db.run('UPDATE workout_set SET reps = 0, completed = 1, reps_entered = 1 WHERE id = ?', [done]);
+  const flags = (d: ReturnType<typeof openDb>) => [typed, blank, done].map((id) => d.all('SELECT reps_entered FROM workout_set WHERE id = ?', [id])[0].reps_entered);
+  const chunks = await archive(db);
+  const copy = openDb(':memory:');
+  applyImport(copy, readImport(copy, chunks), 'replace');
+  assert.deepEqual(flags(copy), [1, 0, 1]);
+  const older = rezip(chunks, (f) => {
+    const [header, ...rows] = parseCsv(strFromU8(f['workout_set.csv'])) as string[][];
+    f['workout_set.csv'] = strToU8(toCsv(header.filter((c) => c !== 'reps_entered'), rows.map((r) => Object.fromEntries(header.map((c, i) => [c, r[i]])))));
+  });
+  const old = openDb(':memory:');
+  applyImport(old, readImport(old, older), 'replace');
+  assert.deepEqual(flags(old), [0, 0, 1]);
+});
+
 test("exercise notes travel in exercise.csv; an older export without the column keeps local notes", async () => {
   const db = clean();
   const note = (d: ReturnType<typeof openDb>, name: string) => d.all('SELECT note FROM exercise WHERE name = ?', [name])[0].note;
@@ -296,13 +316,13 @@ test('malformed imports are rejected with no partial writes', async () => {
   const cases: [string, Uint8Array[], RegExp][] = [
     ['bad id', rezip(chunks, (f) => (f['workout_set.csv'] = strToU8(strFromU8(f['workout_set.csv']).replace(/\r\n[a-z0-9]+,/, '\r\nnot an id!,')))), /id is not a valid ID/],
     ['missing parent', rezip(chunks, (f) => (f['workout.csv'] = strToU8(strFromU8(f['workout.csv']).split('\r\n')[0] + '\r\n'))), /FOREIGN KEY/],
-    ['bad fields', rezip(chunks, (f) => (f['workout_set.csv'] = strToU8(strFromU8(f['workout_set.csv']).replace(/,\r\n/, ',weight\r\n')))), /fields must list only/],
+    ['bad fields', rezip(chunks, (f) => (f['workout_set.csv'] = strToU8(strFromU8(f['workout_set.csv']).replace(/,,([01])\r\n/, ',weight,$1\r\n')))), /fields must list only/],
     ['bad number', rezip(chunks, (f) => (f['measurement.csv'] = strToU8(strFromU8(f['measurement.csv']).replace('81.35', 'heavy')))), /value must be a non-negative number/],
     ['bad unit', rezip(chunks, (f) => (f['measurement.csv'] = strToU8(strFromU8(f['measurement.csv']).replace(/,(kg|lb)\r\n/, ',cm\r\n')))), /unit does not match/],
     ['bad date', rezip(chunks, (f) => (f['measurement.csv'] = strToU8(strFromU8(f['measurement.csv']).replace('2026-10-01', '2026-13-01')))), /date must be/],
     ['unknown column', rezip(chunks, (f) => (f['setting.csv'] = strToU8('key,value,extra\r\nweightUnit,lb,1\r\n'))), /unknown columns extra/],
     ['path', rezip(chunks, (f) => (f['../evil.csv'] = strToU8('x'))), /Unexpected file in archive: \.\.\/evil\.csv/],
-    ['schema', rezip(chunks, (f) => (f['manifest.json'] = strToU8(strFromU8(f['manifest.json']).replace('"schema": 19', '"schema": 99')))), /schema version 99/],
+    ['schema', rezip(chunks, (f) => (f['manifest.json'] = strToU8(strFromU8(f['manifest.json']).replace('"schema": 20', '"schema": 99')))), /schema version 99/],
     ['no manifest', rezip(chunks, (f) => delete f['manifest.json']), /Not a nicereps export/],
     ['broken csv', rezip(chunks, (f) => (f['template.csv'] = strToU8('id,name\r\n"a"b\r\n'))), /Malformed CSV/],
     ['too large', rezip(chunks, (f) => (f['template.csv'] = new Uint8Array(65 * 1024 * 1024).fill(65))), /more than 64 MB/],

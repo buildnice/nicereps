@@ -25,8 +25,11 @@ const checkSet = <T extends PlannedSet>(set: T) => {
   return { ...set, comment: set.comment?.trim() || null };
 };
 
-// shortcut: 0 reps counts as blank, so a target can't log a deliberate 0; add a nullable reps column if that matters
-const logged = <T extends SetFields>(set: T) => (set.completed && !set.reps && set.targetReps ? { ...set, reps: set.targetReps } : set);
+// Reps may be 0, so only the flag tells a typed 0 from a set nobody entered yet.
+const entered = <T extends SetFields>(db: Db, workoutExerciseId: string, set: T) => {
+  if (set.completed && !set.repsEntered && q.setMode(db, workoutExerciseId) === 'reps') throw new Error('Enter reps to complete the set');
+  return set;
+};
 
 const copied = ({ type, weight, unit, reps, duration, distance, distanceUnit, rounds, recovery, rest, targetRpe, options, fields }: PlannedSet) => ({
   type,
@@ -246,8 +249,8 @@ export const addExercise = (db: Db, workoutId: string, exerciseId: string, after
 export const addSet = (db: Db, workoutExerciseId: string, set: Partial<SetFields> = {}) => {
   const id = createId();
   const last = q.lastSet(db, workoutExerciseId);
-  const { weight = 0, unit = weightUnit(db), reps = 0, targetReps, distanceUnit: lastDistanceUnit = distanceUnit(db), completed, type, ...others } = last ?? {};
-  q.insertSet(db, id, workoutExerciseId, logged(checkSet({ ...others, type: 'normal', weight, unit, reps: 0, targetReps: reps || targetReps || null, distanceUnit: lastDistanceUnit, completed: false, ...set })));
+  const { weight = 0, unit = weightUnit(db), reps = 0, repsEntered, targetReps, distanceUnit: lastDistanceUnit = distanceUnit(db), completed, type, ...others } = last ?? {};
+  q.insertSet(db, id, workoutExerciseId, entered(db, workoutExerciseId, checkSet({ ...others, type: 'normal', weight, unit, reps: 0, repsEntered: 'reps' in set, targetReps: reps || targetReps || null, distanceUnit: lastDistanceUnit, completed: false, ...set })));
   return id;
 };
 
@@ -353,9 +356,8 @@ export const logWorkout = (db: Db, date: string, timeZone = Intl.DateTimeFormat(
 export const unfinishedWorkouts = (db: Db) => q.workouts(db, 'finished_at IS NULL', []);
 
 export const correctSet = (db: Db, setId: string, patch: Partial<SetFields>) => {
-  const set = { ...q.readSet(db, setId), ...patch };
-  const blank = patch.completed === false && set.targetReps && set.reps === set.targetReps ? { ...set, reps: 0 } : set;
-  q.updateSet(db, setId, checkSet(patch.completed ? logged(set) : blank));
+  const set = { ...q.readSet(db, setId), ...('reps' in patch && { repsEntered: true }), ...patch };
+  q.updateSet(db, setId, entered(db, q.setPlace(db, setId).workoutExerciseId, checkSet(set)));
 };
 
 export const finishWorkout = (db: Db, workoutId: string, now = new Date()) => q.finishWorkout(db, workoutId, now.toISOString());

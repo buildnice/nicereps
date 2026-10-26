@@ -26,6 +26,13 @@ name: Log sets, rest timer, undo delete, finish
 # Tapping the set number cycles working, warm-up, drop.
 - tapOn: "Set 2, normal, change type"
 - assertVisible: "Set 2, warm-up, change type"
+# A blank set can't be completed; a typed 0 can.
+- tapOn: Complete set 2
+- assertVisible: Enter reps to complete this set, 0 if none
+- tapOn: Set 2 reps.*
+- runFlow: {file: common/type.yml, env: {KEYS: "0"}}
+- tapOn: Done
+- assertNotVisible: Enter reps to complete this set, 0 if none
 - tapOn: Complete set 2
 - runFlow: common/finish.yml
 - assertVisible: "Working sets, 1"
