@@ -1,0 +1,18 @@
+appId: com.buildnice.nicereps
+name: Renaming a finished workout is kept when the keyboard is dismissed before Close
+---
+- runFlow: common/launch.yml
+- runFlow: common/bench-workout.yml
+- scrollUntilVisible:
+    element: Edit
+- tapOn: Edit
+- tapOn: Rename workout
+- eraseText
+- inputText: Legs
+# Hiding the keyboard leaves the field focused, so Close unmounts it before it ends editing.
+- hideKeyboard
+- tapOn: Close workout
+# Close returns home; Recent lists the workout by its name.
+- scrollUntilVisible:
+    element: "Legs, .*"
+- assertNotVisible: "Workout, .*"
