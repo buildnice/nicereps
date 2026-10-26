@@ -231,11 +231,14 @@ export function* readImportSteps(db: Db, chunks: Iterable<Uint8Array>, timeZone 
         const [columns, ...rows] = parseCsv(files[name]);
         const header = (columns ?? []).map((c) => c ?? '');
         const km = name.endsWith('_set.csv') && !header.includes('distance_unit');
+        // Same rule as the reps_entered migration.
+        const typed = name === 'workout_set.csv' && !header.includes('reps_entered');
+        const entered = (cells: (string | null)[]) => (cells[header.indexOf('completed')] === '1' || Number(cells[header.indexOf('reps')]) > 0 ? '1' : '0');
         return {
           table: name.slice(0, -4),
-          columns: km ? [...header, 'distance_unit'] : header,
+          columns: [...header, ...(km ? ['distance_unit'] : []), ...(typed ? ['reps_entered'] : [])],
           rows: rows
-            .map((cells, i) => ({ at: `${name} row ${i + 2}`, cells: km ? [...cells, 'km'] : cells }))
+            .map((cells, i) => ({ at: `${name} row ${i + 2}`, cells: [...cells, ...(km ? ['km'] : []), ...(typed ? [entered(cells)] : [])] }))
             .filter(({ cells }) => name !== 'photo.csv' || photos.has(cells[header.indexOf('file')] ?? '')),
         };
       });

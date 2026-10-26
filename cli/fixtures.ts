@@ -79,7 +79,7 @@ export const seed = (db: Db) => {
   return workouts.map(([template, at, done]) => {
     const now = new Date(at);
     const id = startWorkout(db, { templateId: templateIds[template], now, timeZone: fixtureTimeZone });
-    getWorkout(db, id).exercises.forEach((e, i) => e.sets.forEach((s, j) => done[i][j] && correctSet(db, s.id, { completed: true })));
+    getWorkout(db, id).exercises.forEach((e, i) => e.sets.forEach((s, j) => done[i][j] && correctSet(db, s.id, { reps: s.targetReps ?? 0, completed: true })));
     finishWorkout(db, id, new Date(now.getTime() + 60 * 60 * 1000));
     return id;
   });

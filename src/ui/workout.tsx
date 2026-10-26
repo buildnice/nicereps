@@ -186,6 +186,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const placed = useRef<{ y: number; height: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const nameInput = useRef<TextInput>(null);
+  const named = useRef('');
   const finished = !!workout.finishedAt;
   const exit = () => {
     ops.closeWorkout(db, id);
@@ -214,7 +215,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     const sub = Keyboard.addListener('keyboardDidShow', ({ endCoordinates }) =>
       TextInput.State.currentlyFocusedInput()?.measureInWindow((_x, y, _w, h) => {
         const over = y + h + space.m - endCoordinates.screenY;
-        if (over > 0) scroll.current?.scrollTo({ y: offset.current + over });
+        if (over > 0) requestAnimationFrame(() => scroll.current?.scrollTo({ y: offset.current + over }));
       }),
     );
     return () => sub.remove();
@@ -259,7 +260,12 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   if (cta === 'show' && !allDone) setCta('spent');
   const update = (set: string, patch: Partial<SetFields>) => run(() => ops.correctSet(db, set, patch));
 
+  const [missing, setMissing] = useState<string | null>(null);
   const complete = (exercise: (typeof exercises)[number], set: LoggedSet) => {
+    if (!set.completed && exercise.mode === 'reps' && !set.repsEntered) {
+      setMissing(set.id);
+      return AccessibilityInfo.announceForAccessibility(needReps);
+    }
     update(set.id, { completed: !set.completed });
     const pr = !set.completed && ops.prSets(db, ops.getWorkout(db, id)).has(set.id);
     if (pr) AccessibilityInfo.announceForAccessibility('Personal record');
@@ -378,12 +384,10 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
           autoFocus
           selectTextOnFocus
           defaultValue={workout.name}
-          onFocus={() => setEdit(null)}
-          onEndEditing={(event) => {
-            const name = event.nativeEvent.text;
-            if (name.trim()) run(() => ops.renameWorkout(db, id, name));
-            setRenaming(false);
-          }}
+          onFocus={() => { setEdit(null); named.current = workout.name; }}
+          // Save each keystroke: Close can unmount the field before onEndEditing fires. Cleared reverts to the name it had.
+          onChangeText={(name) => run(() => ops.renameWorkout(db, id, name.trim() ? name : named.current))}
+          onEndEditing={() => setRenaming(false)}
           accessibilityLabel="Workout name"
           style={[type.title, styles.rename, { color: c.text, borderColor: c.line }]}
         />
@@ -420,6 +424,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
         ref={scroll}
         onScroll={(event) => (offset.current = event.nativeEvent.contentOffset.y)}
         scrollEventThrottle={64}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: space.xl, paddingBottom: insets.bottom + space.xxl + dockHeight + (edit ? sheetHeight : 0) }}
       >
       <View style={[styles.header, large && { flexWrap: 'wrap', justifyContent: 'space-between' }]}>
@@ -461,7 +466,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
         const phases = !target ? [] : exercise.mode === 'interval' ? intervalPhases(target) : exercise.mode === 'duration' && target.duration ? [{ label: 'Countdown', seconds: target.duration }] : [];
         if (open !== exercise.id) {
           return (
-            <Tap key={exercise.id} onPress={() => show(exercise.id)} style={[styles.card, styles.collapsed, { backgroundColor: c.surface }, exercise.superset && { borderLeftWidth: 3, borderLeftColor: c.faint }]}>
+            <Tap key={exercise.id} onPress={() => { setArrived(exercise.id); show(exercise.id); }} style={[styles.card, styles.collapsed, { backgroundColor: c.surface }, exercise.superset && { borderLeftWidth: 3, borderLeftColor: c.faint }]}>
               <View style={{ flex: 1 }}>
                 <Txt variant="heading">{exercise.name}</Txt>
                 {!!exercise.exerciseNote && <Txt variant="meta" tone="muted" style={{ fontWeight: '500' }}>{exercise.exerciseNote}</Txt>}
@@ -599,6 +604,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                 kit={kit}
                 usual={exercise.mode === 'reps' ? usual : undefined}
                 flagged={flagged.includes(set.id) && !set.completed}
+                missing={missing === set.id && !set.repsEntered}
               />,
             ])}
             {deleted?.workoutExerciseId === exercise.id && deleted.position >= exercise.sets.length && <Undo onUndo={() => undo(deleted)} />}
@@ -690,7 +696,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
               if (!edit || (!editing && edit.field !== 'bar')) return false;
               const field = edit.field;
               const v = field === 'bodyWeight' || field === 'bar' ? parse(draft.text) : entered(field, draft.text);
-              const error = field === 'bar' ? attempt(() => run(() => ops.setBar(db, edit.set, v ?? null, units.weight))) : field === 'bodyWeight' ? attempt(() => v != null && (run(() => measures.logBodyWeight(db, v, workout.date)), setKgOn(measures.bodyWeight(db, workout.date)))) : attempt(() => update(edit.set, { [field]: field === 'weight' || field === 'reps' ? (v ?? 0) : (v ?? null), ...(field === 'weight' && { unit: units.weight }), ...(field === 'distance' && { distanceUnit: units.distance }) }));
+              const error = field === 'bar' ? attempt(() => run(() => ops.setBar(db, edit.set, v ?? null, units.weight))) : field === 'bodyWeight' ? attempt(() => v != null && (run(() => measures.logBodyWeight(db, v, workout.date)), setKgOn(measures.bodyWeight(db, workout.date)))) : attempt(() => update(edit.set, { [field]: field === 'weight' || field === 'reps' ? (v ?? 0) : (v ?? null), ...(field === 'reps' && { repsEntered: v != null }), ...(field === 'weight' && { unit: units.weight }), ...(field === 'distance' && { distanceUnit: units.distance }) }));
               setEdit((e) => e && (error ? { ...e, error } : { ...e, ...draft, error: undefined }));
               if (error) AccessibilityInfo.announceForAccessibility(error);
               return !error;
@@ -952,6 +958,7 @@ type SetRowProps = {
   kit?: Kit;
   usual?: SetFields[][];
   flagged: boolean;
+  missing: boolean;
 };
 
 const ACTIONS = 112;
@@ -960,6 +967,7 @@ const popIn = new Keyframe({
   55: { opacity: 1, transform: [{ scale: 1.12 }], easing: Easing.bezier(0.23, 1, 0.32, 1) },
   100: { transform: [{ scale: 1 }], easing: Easing.bezier(0.77, 0, 0.175, 1) },
 }).duration(320).delay(160);
+const needReps = 'Enter reps to complete this set, 0 if none';
 const fieldNames: Record<OptionalField, string> = { targetRpe: 'Target RPE', rpe: 'RPE', rest: 'Rest', comment: 'Comment', plates: 'Plates' };
 
 export const setLabel = (sets: { type: string }[], j: number) =>
@@ -976,7 +984,7 @@ function Undo({ onUndo }: { onUndo: () => void }) {
   );
 }
 
-function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, onComplete, onChange, editing, onEdit, onReveal, bodyWeight, kit, usual, flagged }: SetRowProps) {
+function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, onComplete, onChange, editing, onEdit, onReveal, bodyWeight, kit, usual, flagged, missing }: SetRowProps) {
   const fields = useRef<Partial<Record<Editable, View | null>>>({});
   const editingField = editing?.field;
   useEffect(() => {
@@ -989,14 +997,18 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
   const speed = mode === 'distance' ? set.pace : null;
   const visible = shownFields(set);
   const [picking, setPicking] = useState(false);
-  const rows = (['targetRpe', 'rpe', 'rest'] as const).filter((f) => visible.includes(f));
+  const [focus, setFocus] = useState(false);
   const pick = () => {
-    if (picking && rows.some((f) => f === editing?.field)) onEdit(null);
+    if (picking && (editing?.field === 'targetRpe' || editing?.field === 'rpe' || editing?.field === 'rest')) onEdit(null);
+    setFocus(false);
     setPicking(!picking);
   };
   const toggle = (field: OptionalField) => {
-    if (editing?.field === field && visible.includes(field)) onEdit(null);
+    const on = !visible.includes(field);
+    if (!on && editing?.field === field) onEdit(null);
     onChange({ fields: optionalFields.filter((f) => (f === field) !== visible.includes(f)).join(',') });
+    setFocus(on && field === 'comment');
+    if (on && field !== 'comment' && field !== 'plates') onEdit(field);
   };
   const weight = editing?.field === 'weight' ? Number(editing.text) || 0 : set.weight;
   const found = usual && unusual(set, usual);
@@ -1008,7 +1020,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
   const x = useSharedValue(0);
   const slide = useAnimatedStyle(() => ({ transform: [{ translateX: x.get() }] }));
   const reduce = useReducedMotion();
-  const warnings = [oddText, flagged && 'Not completed · tap Finish again to finish anyway'].filter((w): w is string => !!w);
+  const warnings = [oddText, missing && needReps, flagged && 'Not completed · tap Finish again to finish anyway'].filter((w): w is string => !!w);
   const glow = useSharedValue(1);
   const pulse = useAnimatedStyle(() => ({ opacity: glow.get() }));
   const warned = warnings.join();
@@ -1055,7 +1067,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
   const active = (field: Editable) => editing?.field === field && { borderWidth: 2, borderColor: ink || c.text };
   const highlight = (field: Field) => editing?.field === field && editing.fresh && (ink ? { backgroundColor: ink } : { backgroundColor: c.line });
   const target = (field: Field) =>
-    editing?.field === field ? null : field === 'reps' && !set.reps && !set.completed && set.targetReps ? String(set.targetReps) : field === 'weight' && !set.weight && bodyWeight !== undefined ? 'BW' : null;
+    editing?.field === field ? null : field === 'reps' && !set.repsEntered && !set.completed ? String(set.targetReps ?? 0) : field === 'weight' && !set.weight && bodyWeight !== undefined ? 'BW' : null;
   const cycle = () => onChange({ type: nextType[set.type] });
   const copy = (p: SetFields) => {
     onEdit(null);
@@ -1091,13 +1103,13 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
               {modeFields[mode].map(([field, fieldUnit], i, all) => (
                 <Tap
                   key={field}
-                  accessibilityLabel={`Set ${n} ${field}, ${shown(field) || 0}${target(field) ? `, ${field === 'weight' ? 'body weight only' : `target ${target(field)}`}` : ''}`}
+                  accessibilityLabel={`Set ${n} ${field}, ${shown(field) || 0}${target(field) ? `, ${field === 'weight' ? 'body weight only' : set.targetReps ? `target ${target(field)}` : 'not entered'}` : ''}`}
                   ref={(node) => { fields.current[field] = node; }}
                   accessibilityState={{ selected: editing?.field === field }}
                   onPress={() => onEdit(field)}
                   style={[styles.field, { backgroundColor: set.completed ? 'transparent' : c.raised }, active(field)]}
                 >
-                  {odd?.field === field && <Animated.View pointerEvents="none" style={[styles.ring, { borderColor: c.warning }, pulse]} />}
+                  {(odd?.field === field || (missing && field === 'reps')) && <Animated.View pointerEvents="none" style={[styles.ring, { borderColor: c.warning }, pulse]} />}
                   <Ink fill={fill} at={(i + 1) / (all.length + 1)} from={target(field) ? c.faint : c.text} to={ink && highlight(field) ? c.text : target(field) ? soft : c.bg} variant="value" numberOfLines={1} adjustsFontSizeToFit style={[styles.fieldText, highlight(field)]}>{target(field) ?? (shown(field) || '0')}</Ink>
                   {target(field) !== 'BW' && <Ink fill={fill} at={(i + 1) / (all.length + 1)} from={c.muted} to={soft} variant="small" style={{ fontWeight: '600' }}>{field === 'weight' ? units.weight : field === 'distance' ? units.distance : fieldUnit}</Ink>}
                 </Tap>
@@ -1158,45 +1170,53 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
             <Ink fill={fill} at={0.2} from={c.muted} to={soft} variant="meta" style={{ paddingLeft: space.s, paddingBottom: space.s }}>Pace {clock(speed)} /{units.distance}</Ink>
           )}
         </View>
-        {picking && (rows.length > 0 || visible.includes('comment')) && (
-          <Animated.View entering={FadeIn.duration(160)} style={[styles.group, { backgroundColor: c.line }]}>
-            {rows.map((field) => (
-              <Tap
-                key={field}
-                accessibilityLabel={`Set ${n} ${fieldNames[field]}, ${shown(field) || (field === 'rest' ? clock(defaultRest) : 'empty')}`}
-                ref={(node) => { fields.current[field] = node; }}
-                accessibilityState={{ selected: editing?.field === field }}
-                onPress={() => onEdit(field)}
-                style={[styles.option, { backgroundColor: c.raised, borderColor: editing?.field === field ? c.text : 'transparent' }]}
-              >
-                <Txt variant="label" tone="muted">{fieldNames[field]}</Txt>
-                <Txt variant="label" style={[{ color: shown(field) ? c.text : c.faint }, highlight(field)]}>
-                  {shown(field) || (field === 'rest' ? clock(defaultRest) : '–')}
-                </Txt>
-              </Tap>
-            ))}
-            {visible.includes('comment') && (
-              <View style={[styles.commentRow, { backgroundColor: c.raised }]}>
-                <Txt variant="label" tone="muted" accessibilityElementsHidden importantForAccessibility="no">Comment</Txt>
-                <TextInput
-                  defaultValue={set.comment ?? ''}
-                  onChangeText={(t) => onChange({ comment: t })}
-                  onFocus={() => onEdit(null)}
-                  placeholder="Add a comment"
-                  placeholderTextColor={c.faint}
-                  accessibilityLabel={`Set ${n} comment`}
-                  multiline
-                  style={[type.body, styles.commentInput, { color: c.text }]}
-                />
-              </View>
-            )}
-          </Animated.View>
-        )}
         {picking && (
-          <Animated.View entering={FadeIn.duration(160)} accessibilityLabel={`Set ${n} fields`} style={styles.options}>
-            {optionalFields.filter((f) => f !== 'plates' || kit).map((field) => (
-              <Chip key={field} role="checkbox" label={fieldNames[field]} selected={visible.includes(field)} onPress={() => toggle(field)} />
-            ))}
+          <Animated.View entering={FadeIn.duration(160)} style={[styles.group, { backgroundColor: c.line }]}>
+            {optionalFields.filter((f) => f !== 'plates' || kit).map((field) => {
+              const on = visible.includes(field);
+              return (
+                <View key={field} style={{ backgroundColor: c.raised }}>
+                  <Tap
+                    accessibilityRole="switch"
+                    accessibilityLabel={`Set ${n} ${fieldNames[field]}`}
+                    accessibilityState={{ checked: on }}
+                    onPress={() => toggle(field)}
+                    style={styles.option}
+                  >
+                    <Txt variant="label" tone={on ? undefined : 'muted'}>{fieldNames[field]}</Txt>
+                    <View style={[styles.toggle, { backgroundColor: on ? c.accent : c.surface }]}>
+                      <Txt variant="small" tone={on ? 'onAccent' : 'muted'} style={{ fontWeight: '700' }}>{on ? 'On' : 'Off'}</Txt>
+                    </View>
+                  </Tap>
+                  {on && field === 'comment' && (
+                    <TextInput
+                      defaultValue={set.comment ?? ''}
+                      onChangeText={(t) => onChange({ comment: t })}
+                      onFocus={() => onEdit(null)}
+                      autoFocus={focus}
+                      placeholder="Add a comment"
+                      placeholderTextColor={c.faint}
+                      accessibilityLabel={`Set ${n} comment`}
+                      multiline
+                      style={[type.body, styles.drawerField, { paddingVertical: space.s, color: c.text, backgroundColor: c.surface }]}
+                    />
+                  )}
+                  {on && field !== 'comment' && field !== 'plates' && (
+                    <Tap
+                      accessibilityLabel={`Set ${n} ${fieldNames[field]}, ${shown(field) || (field === 'rest' ? clock(defaultRest) : 'empty')}`}
+                      ref={(node) => { fields.current[field] = node; }}
+                      accessibilityState={{ selected: editing?.field === field }}
+                      onPress={() => onEdit(field)}
+                      style={[styles.drawerField, { backgroundColor: c.surface }, editing?.field === field && { borderColor: c.text }]}
+                    >
+                      <Txt variant="value" style={[{ color: shown(field) ? c.text : c.faint }, highlight(field)]}>
+                        {shown(field) || (field === 'rest' ? clock(defaultRest) : '–')}
+                      </Txt>
+                    </Tap>
+                  )}
+                </View>
+              );
+            })}
           </Animated.View>
         )}
       </Animated.View>
@@ -1230,11 +1250,10 @@ const styles = StyleSheet.create({
   fill: { top: 1, bottom: 1, borderRadius: radius.s, transformOrigin: 'left' },
   ring: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: radius.s, borderWidth: 2 },
   check: { width: 22, height: 22, minHeight: 22, borderRadius: radius.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  options: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, paddingTop: space.m, paddingBottom: space.m },
   group: { gap: 1, borderRadius: radius.s, marginTop: space.s, overflow: 'hidden' },
-  option: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: touch.min, paddingHorizontal: space.m - 2, borderWidth: 2 },
-  commentRow: { gap: space.xs, paddingHorizontal: space.m, paddingTop: space.m },
-  commentInput: { minHeight: touch.min, padding: 0, paddingBottom: space.m },
+  option: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: touch.min, paddingHorizontal: space.m },
+  toggle: { minWidth: 44, alignItems: 'center', borderRadius: radius.pill, paddingHorizontal: space.s, paddingVertical: 2 },
+  drawerField: { marginHorizontal: space.m, marginBottom: space.m, paddingHorizontal: space.m, borderRadius: radius.s, minHeight: touch.min, justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.s },
   maxes: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.xs, paddingVertical: space.s, borderTopWidth: StyleSheet.hairlineWidth },
   action: { flexGrow: 1, minWidth: touch.min, alignItems: 'center', borderRadius: radius.s, borderWidth: 1, borderStyle: 'dashed' },

@@ -17,7 +17,7 @@ test('the heatmap counts completed working sets in finished workouts', () => {
   const [bench, press] = ops.getWorkout(db, pushA).exercises;
   const corrections = [
     [bench.sets[0].id, { type: 'normal' }, 8],
-    [press.sets[2].id, { completed: true }, 9],
+    [press.sets[2].id, { reps: 0, completed: true }, 9],
     [press.sets[0].id, { completed: false }, 8],
     [press.sets[1].id, { type: 'warm-up' }, 7],
   ] as const;

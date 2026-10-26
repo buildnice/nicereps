@@ -28,6 +28,7 @@ fun show(context: Context, titles: ArrayList<String>, body: String, ends: LongAr
   val now = System.currentTimeMillis()
   val i = ends.indexOfFirst { it > now }
   val manager = NotificationManagerCompat.from(context)
+  for (done in 0 until (if (i < 0) ends.size else i) - 1) manager.cancel("timer-$done", 0)
   if (i < 0 || !manager.areNotificationsEnabled()) return
   manager.createNotificationChannel(NotificationChannelCompat.Builder(CHANNEL, NotificationManagerCompat.IMPORTANCE_LOW).setName("Rest countdown").build())
   val open = PendingIntent.getActivity(context, 0, context.packageManager.getLaunchIntentForPackage(context.packageName), PendingIntent.FLAG_IMMUTABLE)

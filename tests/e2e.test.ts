@@ -123,7 +123,7 @@ test('correcting a finished workout updates totals, heatmap and records', () => 
   const flyExercise = id(shown, /Cable Fly/);
 
   cli('edit', bench, '--weight', '90', '--rpe', '9');
-  cli('edit', fly, '--done', 'true');
+  cli('edit', fly, '--reps', '10', '--done', 'true');
   cli('edit', bench, '--target-reps', '10');
   assert.match(cli('show', workout), new RegExp(`${bench}  .*target 10 reps`));
   cli('edit', bench, '--target-reps', '');
@@ -369,7 +369,9 @@ test('entries keep the unit they were entered in and records compare across unit
   assert.match(cli('show', workout), /normal  180 lb × 8  done/);
   assert.match(cli('records', 'Bench Press'), /best weight  82\.5 kg × 8  2026-09-29/);
   assert.match(cli('measurements'), /2026-10-01  32 in/);
-  cli('set', cli('add', cli('start', ...at('2026-10-09')), 'Bench Press'), '--done', 'true');
+  const again = cli('add', cli('start', ...at('2026-10-09')), 'Bench Press');
+  assert.throws(() => cli('set', again, '--done', 'true'), /Enter reps to complete the set/);
+  cli('set', again, '--reps', '8', '--done', 'true');
   assert.match(cli('active'), /normal  180 lb × 8  done/);
 });
 

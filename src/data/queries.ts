@@ -11,6 +11,7 @@ export type SetFields = {
   weight: number;
   unit?: WeightUnit;
   reps: number;
+  repsEntered?: boolean;
   targetReps?: number | null;
   completed: boolean;
   duration?: number | null;
@@ -26,13 +27,14 @@ export type SetFields = {
   fields?: string | null;
 };
 
-const setColumns = 'type, weight, unit, reps, target_reps, completed, duration, distance, distance_unit, rounds, recovery, rest, target_rpe, rpe, comment, options, fields';
+const setColumns = 'type, weight, unit, reps, reps_entered, target_reps, completed, duration, distance, distance_unit, rounds, recovery, rest, target_rpe, rpe, comment, options, fields';
 
 const setValues = (s: SetFields): Value[] => [
   s.type,
   s.weight,
   s.unit ?? 'kg',
   s.reps,
+  Number(!!s.repsEntered),
   s.targetReps ?? null,
   Number(s.completed),
   s.duration ?? null,
@@ -53,6 +55,7 @@ const toSet = (s: Row): SetFields => ({
   weight: s.weight as number,
   unit: s.unit as WeightUnit,
   reps: s.reps as number,
+  repsEntered: s.reps_entered === 1,
   targetReps: s.target_reps as number | null,
   completed: s.completed === 1,
   duration: s.duration as number | null,
@@ -230,7 +233,7 @@ export const insertWorkoutExercise = (db: Db, id: string, workoutId: string, exe
 
 export const insertSet = (db: Db, id: string, workoutExerciseId: string, set: SetFields) =>
   db.run(
-    `INSERT INTO workout_set (id, workout_exercise_id, position, ${setColumns}) SELECT ?, ?, COUNT(*), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM workout_set WHERE workout_exercise_id = ?`,
+    `INSERT INTO workout_set (id, workout_exercise_id, position, ${setColumns}) SELECT ?, ?, COUNT(*), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM workout_set WHERE workout_exercise_id = ?`,
     [id, workoutExerciseId, ...setValues(set), workoutExerciseId],
   );
 
@@ -245,7 +248,7 @@ export const setPlace = (db: Db, id: string) => {
 };
 
 export const updateSet = (db: Db, id: string, set: SetFields) =>
-  db.run(`UPDATE workout_set SET (${setColumns}) = (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) WHERE id = ?`, [...setValues(set), id]);
+  db.run(`UPDATE workout_set SET (${setColumns}) = (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) WHERE id = ?`, [...setValues(set), id]);
 
 export const lastSet = (db: Db, workoutExerciseId: string) => {
   const row =
@@ -435,6 +438,9 @@ export const lifts = (db: Db) =>
     .map((r) => ({ id: r.id as string, name: r.name as string, mode: r.mode as Mode, note: r.note as string | null }));
 
 export const starredRecords = (db: Db) => db.all('SELECT exercise_id, kind FROM starred_record').map((r) => `${r.exercise_id} ${r.kind}`);
+
+export const setMode = (db: Db, workoutExerciseId: string) =>
+  one(db, 'SELECT e.mode FROM workout_exercise we JOIN exercise e ON e.id = we.exercise_id WHERE we.id = ?', [workoutExerciseId]).mode as Mode;
 
 export const exerciseMode = (db: Db, id: string) => one(db, 'SELECT mode FROM exercise WHERE id = ?', [id]).mode as Mode;
 
