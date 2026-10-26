@@ -186,6 +186,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const placed = useRef<{ y: number; height: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
   const nameInput = useRef<TextInput>(null);
+  const named = useRef('');
   const finished = !!workout.finishedAt;
   const exit = () => {
     ops.closeWorkout(db, id);
@@ -378,12 +379,10 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
           autoFocus
           selectTextOnFocus
           defaultValue={workout.name}
-          onFocus={() => setEdit(null)}
-          onEndEditing={(event) => {
-            const name = event.nativeEvent.text;
-            if (name.trim()) run(() => ops.renameWorkout(db, id, name));
-            setRenaming(false);
-          }}
+          onFocus={() => { setEdit(null); named.current = workout.name; }}
+          // Save each keystroke: Close can unmount the field before onEndEditing fires. Cleared reverts to the name it had.
+          onChangeText={(name) => run(() => ops.renameWorkout(db, id, name.trim() ? name : named.current))}
+          onEndEditing={() => setRenaming(false)}
           accessibilityLabel="Workout name"
           style={[type.title, styles.rename, { color: c.text, borderColor: c.line }]}
         />
