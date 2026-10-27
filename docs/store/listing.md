@@ -60,4 +60,4 @@ Exercise instructions and images come from Free Exercise DB.
 
 ## Review sample data
 
-- App Review gets a ~5-month sample history to import (Settings → Import). Regenerate it ending today with `node scripts/sample-data.ts nicereps-sample.zip [--end YYYY-MM-DD] [--tz ZONE]`; the same seed gives the same history.
+- App Review gets a ~5-month sample history to import (Settings → Import data). Regenerate it ending today with `node scripts/sample-data.ts nicereps-sample.zip [--end YYYY-MM-DD] [--tz ZONE]`; the same seed gives the same history.
