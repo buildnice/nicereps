@@ -57,3 +57,7 @@ Exercise instructions and images come from Free Exercise DB.
 - App Store privacy label: Data Not Collected.
 - Privacy policy: https://buildnice.app/nicereps/privacy/
 - Support email: support@buildnice.app. Support URL (App Store): https://buildnice.app/nicereps/
+
+## Review sample data
+
+- App Review gets a ~5-month sample history to import (Settings → Import). Regenerate it ending today with `node scripts/sample-data.ts nicereps-sample.zip [--end YYYY-MM-DD] [--tz ZONE]`; the same seed gives the same history.
