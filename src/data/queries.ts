@@ -103,10 +103,12 @@ export const exercise = (db: Db, id: string) => {
 
 export const exerciseId = (db: Db, name: string) => one(db, 'SELECT id FROM exercise WHERE name = ?', [name]).id as string;
 
-export const exercises = (db: Db, query = '', limit = -1) => {
+export const exercises = (db: Db, query = '', limit = -1, mode: Mode | null = null) => {
   const words = query.split(/\s+/).filter(Boolean).map((w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`);
   return db
-    .all(`SELECT id, name, mode, source, equipment, bar, bar_unit FROM exercise WHERE ${['1', ...words.map(() => "name LIKE ? ESCAPE '\\'")].join(' AND ')} ORDER BY source IS NOT NULL, name LIMIT ?`, [
+    .all(`SELECT id, name, mode, source, equipment, bar, bar_unit FROM exercise WHERE ${['(? IS NULL OR mode = ?)', ...words.map(() => "name LIKE ? ESCAPE '\\'")].join(' AND ')} ORDER BY source IS NOT NULL, name LIMIT ?`, [
+      mode,
+      mode,
       ...words,
       limit,
     ])

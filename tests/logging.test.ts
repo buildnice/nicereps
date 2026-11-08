@@ -404,12 +404,14 @@ test('swapping an exercise keeps its sets, note, place and superset, and moves h
   const w = ops.startWorkout(db);
   const [pushdown, bench] = ['Reverse Grip Triceps Pushdown', 'Bench Press'].map((name) => ops.addExercise(db, w, id(name)));
   ops.linkSuperset(db, pushdown, bench);
-  ops.addSet(db, pushdown, { weight: 30, reps: 12, rest: 90, comment: 'cables busy', completed: true });
+  ops.addSet(db, pushdown, { weight: 30, reps: 12, targetRpe: 8, rest: 90, comment: 'cables busy', completed: true });
   ops.addSet(db, pushdown, { weight: 30, reps: 10 });
   ops.noteExercise(db, pushdown, 'elbows tucked');
   const before = ops.getWorkout(db, w).exercises;
 
   assert.throws(() => ops.swapExercise(db, pushdown, id('Plank')), /reps exercise, not a duration one/);
+  assert.ok(ops.listExercises(db, 'plank', -1, 'duration').every((e) => e.mode === 'duration'));
+  assert.ok(ops.listExercises(db, 'plank', -1, 'reps').some((e) => e.name === 'Push Up to Side Plank'));
   ops.swapExercise(db, pushdown, id('EZ-Bar Skullcrusher'));
   const after = ops.getWorkout(db, w).exercises;
   assert.deepEqual(after.map((e) => e.name), ['EZ-Bar Skullcrusher', 'Bench Press']);

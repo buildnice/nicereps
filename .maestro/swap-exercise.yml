@@ -10,10 +10,8 @@ name: Swap an exercise with another, keeping its sets
 - tapOn: Skip
 - tapOn: Reverse Grip Triceps Pushdown
 - waitForAnimationToEnd
+# ⋮ opens the options sheet.
 - tapOn: Reverse Grip Triceps Pushdown options
-- scrollUntilVisible:
-    element: Swap Reverse Grip Triceps Pushdown with another exercise
-    centerElement: true
 - tapOn: Swap Reverse Grip Triceps Pushdown with another exercise
 # The picker lists only exercises that log the same fields.
 - tapOn: Search exercises

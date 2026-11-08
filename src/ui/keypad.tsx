@@ -82,7 +82,7 @@ function Key({ k, onPress }: { k: string; onPress: () => void }) {
 
 const KEY = 56;
 
-const styles = StyleSheet.create({
+export const styles = StyleSheet.create({
   sheet: {
     gap: space.s,
     paddingHorizontal: space.m,

@@ -33,7 +33,7 @@ import { images } from '../../assets/catalog/images';
 import { MusclesWorked, Tiles } from './detail';
 import { dayLabel, parseDate, Row, useNow } from './home';
 import { parse, type Draft } from './draft';
-import { Keypad } from './keypad';
+import { Keypad, styles as sheet } from './keypad';
 import { BottomSheet, CLOSE_MS, OPEN_MS } from './sheet';
 import { clock, describeSet, Digits, Icon, inUnit, radius, space, Tap, touch, Txt, type, useColors, usePrototype } from './theme';
 
@@ -183,6 +183,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const [menu, setMenu] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [swapping, setSwapping] = useState<string | null>(null);
+  const [options, setOptions] = useState<{ id: string; name: string; guide: boolean; open: boolean } | null>(null);
   const [flagged, setFlagged] = useState<string[]>([]);
   const placed = useRef<{ y: number; height: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -490,7 +491,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
               <Tap accessibilityLabel={`${exercise.name}, collapse`} onPress={() => show(null)} style={{ flex: 1, justifyContent: 'center' }}>
                 <Txt variant="heading">{exercise.name}</Txt>
               </Tap>
-              <Tap accessibilityLabel={`${exercise.name} options`} accessibilityState={{ expanded: menu === exercise.id }} onPress={() => { setMenu(menu === exercise.id ? null : exercise.id); if (barEdit) setEdit(null); }} style={styles.menu}>
+              <Tap accessibilityLabel={`${exercise.name} options`} accessibilityState={{ expanded: options?.id === exercise.id && options.open }} onPress={() => { setMenu(exercise.id); setOptions({ id: exercise.id, name: exercise.name, guide: !!guide, open: true }); if (barEdit) setEdit(null); }} style={styles.menu}>
                 <Icon of={DotsThreeVerticalIcon} />
               </Tap>
             </View>
@@ -529,40 +530,6 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                   multiline
                   style={[styles.exerciseNote, { color: c.text }]}
                 />
-                <View style={[styles.actions, { marginTop: 0 }]}>
-                  <Tap
-                    accessibilityState={{ expanded: history === exercise.id }}
-                    onPress={() => setHistory(history === exercise.id ? null : exercise.id)}
-                    style={[styles.action, { borderColor: c.line }]}
-                  >
-                    <Txt variant="label" tone="muted">History</Txt>
-                  </Tap>
-                  {guide && (
-                    <Tap
-                      accessibilityState={{ expanded: howTo === exercise.id }}
-                      onPress={() => setHowTo(howTo === exercise.id ? null : exercise.id)}
-                      style={[styles.action, { borderColor: c.line }]}
-                    >
-                      <Txt variant="label" tone="muted">How to</Txt>
-                    </Tap>
-                  )}
-                  <Tap
-                    accessibilityLabel={`Copy ${exercise.name} as a custom exercise`}
-                    accessibilityState={{ expanded: copying === exercise.id }}
-                    onPress={() => setCopying(copying === exercise.id ? null : exercise.id)}
-                    style={[styles.action, { borderColor: c.line }]}
-                  >
-                    <Txt variant="label" tone="muted">Copy as custom</Txt>
-                  </Tap>
-                  <Tap
-                    accessibilityLabel={`Swap ${exercise.name} with another exercise`}
-                    accessibilityState={{ expanded: swapping === exercise.id }}
-                    onPress={() => setSwapping(swapping === exercise.id ? null : exercise.id)}
-                    style={[styles.action, { borderColor: c.line }]}
-                  >
-                    <Txt variant="label" tone="muted">Swap with</Txt>
-                  </Tap>
-                </View>
                 {swapping === exercise.id && (
                   <ExercisePicker
                     exclude={exercises.map((x) => x.exerciseId)}
@@ -706,6 +673,41 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
           </Animated.View>
         )}
       </Animated.View>
+      <BottomSheet modal open={!!options?.open} onClose={() => setOptions((o) => o && { ...o, open: false })}>
+        {options && (
+          <View style={[sheet.sheet, { backgroundColor: c.raised, borderColor: c.line, paddingBottom: insets.bottom + space.s }]}>
+            <View style={[sheet.grabber, { backgroundColor: c.faint }]} />
+            <View style={sheet.head}>
+              <Txt variant="label" tone="muted" numberOfLines={1} style={{ flex: 1 }}>{options.name}</Txt>
+              <Tap accessibilityLabel="Done" onPress={() => setOptions({ ...options, open: false })} style={{ paddingHorizontal: space.m }}>
+                <Txt variant="label">Done</Txt>
+              </Tap>
+            </View>
+            <View style={[styles.group, { backgroundColor: c.line, marginTop: 0 }]}>
+              {([
+                ['History', history, setHistory, true],
+                ['How to', howTo, setHowTo, options.guide],
+                ['Copy as custom', copying, setCopying, true],
+                ['Swap with', swapping, setSwapping, true],
+              ] as const).filter(([, , , shown]) => shown).map(([label, value, set]) => (
+                <Tap
+                  key={label}
+                  accessibilityLabel={label === 'Copy as custom' ? `Copy ${options.name} as a custom exercise` : label === 'Swap with' ? `Swap ${options.name} with another exercise` : label}
+                  accessibilityState={{ expanded: value === options.id }}
+                  onPress={() => {
+                    set(value === options.id ? null : options.id);
+                    setOptions({ ...options, open: false });
+                  }}
+                  style={[styles.option, { backgroundColor: c.surface }]}
+                >
+                  <Txt variant="label">{label}</Txt>
+                  {value === options.id && <Icon of={CheckIcon} size="s" tone="muted" />}
+                </Tap>
+              ))}
+            </View>
+          </View>
+        )}
+      </BottomSheet>
       <BottomSheet open={!!edit} onClose={() => setEdit(null)} onHeight={setSheetHeight}>
         {shown && (
           <Keypad
@@ -746,7 +748,7 @@ export function ExercisePicker({ exclude, onPick, onFocus, create = true, mode }
   const [query, setQuery] = useState('');
   const [copying, setCopying] = useState(false);
   const [from, setFrom] = useState<{ id: string; name: string }>();
-  const found = ops.listExercises(db, query, mode ? -1 : 51 + exclude.length).filter((x) => copying || (!exclude.includes(x.id) && (!mode || x.mode === mode)));
+  const found = ops.listExercises(db, query, 51 + exclude.length, copying ? null : mode).filter((x) => copying || !exclude.includes(x.id));
 
   return (
     <Animated.View entering={FadeIn.duration(160)} style={[styles.card, { backgroundColor: c.surface, paddingVertical: space.xs }]}>
