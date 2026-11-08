@@ -345,6 +345,12 @@ export const updateWorkoutDate = (db: Db, id: string, date: string) => {
   db.run('UPDATE workout SET date = ? WHERE id = ?', [date, id]);
 };
 
+export const swapWorkoutExercise = (db: Db, workoutExerciseId: string, exerciseId: string) => {
+  db.run('UPDATE workout_exercise SET exercise_id = ? WHERE id = ?', [exerciseId, workoutExerciseId]);
+  db.run('DELETE FROM workout_exercise_muscle WHERE workout_exercise_id = ?', [workoutExerciseId]);
+  db.run('INSERT INTO workout_exercise_muscle (workout_exercise_id, muscle, role) SELECT ?, muscle, role FROM exercise_muscle WHERE exercise_id = ?', [workoutExerciseId, exerciseId]);
+};
+
 export const replaceWorkoutMapping = (db: Db, workoutExerciseId: string, mapping: Mapping) => {
   one(db, 'SELECT id FROM workout_exercise WHERE id = ?', [workoutExerciseId]);
   db.run('DELETE FROM workout_exercise_muscle WHERE workout_exercise_id = ?', [workoutExerciseId]);
@@ -443,6 +449,9 @@ export const setMode = (db: Db, workoutExerciseId: string) =>
   one(db, 'SELECT e.mode FROM workout_exercise we JOIN exercise e ON e.id = we.exercise_id WHERE we.id = ?', [workoutExerciseId]).mode as Mode;
 
 export const exerciseMode = (db: Db, id: string) => one(db, 'SELECT mode FROM exercise WHERE id = ?', [id]).mode as Mode;
+
+export const workoutExerciseMode = (db: Db, id: string) =>
+  one(db, 'SELECT e.mode FROM workout_exercise we JOIN exercise e ON e.id = we.exercise_id WHERE we.id = ?', [id]).mode as Mode;
 
 export const starRecord = (db: Db, id: string, exerciseId: string, kind: string, starred: boolean) => {
   if (starred) db.run('INSERT OR IGNORE INTO starred_record (id, exercise_id, kind) VALUES (?, ?, ?)', [id, exerciseId, kind]);

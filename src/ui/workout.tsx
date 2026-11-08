@@ -182,6 +182,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const [howTo, setHowTo] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
+  const [swapping, setSwapping] = useState<string | null>(null);
   const [flagged, setFlagged] = useState<string[]>([]);
   const placed = useRef<{ y: number; height: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -517,7 +518,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                     </Txt>
                   </Tap>
                 )}
-                <ExerciseNote key={visit} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} onFocus={() => setEdit(null)} save={run} />
+                <ExerciseNote key={`${exercise.exerciseId}:${visit}`} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} onFocus={() => setEdit(null)} save={run} />
                 <TextInput
                   defaultValue={exercise.note ?? ''}
                   onChangeText={(t) => run(() => ops.noteExercise(db, exercise.id, t))}
@@ -553,7 +554,27 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                   >
                     <Txt variant="label" tone="muted">Copy as custom</Txt>
                   </Tap>
+                  <Tap
+                    accessibilityLabel={`Swap ${exercise.name} with another exercise`}
+                    accessibilityState={{ expanded: swapping === exercise.id }}
+                    onPress={() => setSwapping(swapping === exercise.id ? null : exercise.id)}
+                    style={[styles.action, { borderColor: c.line }]}
+                  >
+                    <Txt variant="label" tone="muted">Swap with</Txt>
+                  </Tap>
                 </View>
+                {swapping === exercise.id && (
+                  <ExercisePicker
+                    exclude={exercises.map((x) => x.exerciseId)}
+                    mode={exercise.mode}
+                    create={false}
+                    onFocus={() => setEdit(null)}
+                    onPick={(picked) => {
+                      setSwapping(null);
+                      run(() => ops.swapExercise(db, exercise.id, picked));
+                    }}
+                  />
+                )}
                 {copying === exercise.id && (
                   <Animated.View entering={FadeIn.duration(160)}>
                     <NewExercise
@@ -720,12 +741,12 @@ function Totals({ workout }: { workout: ReturnType<typeof ops.getWorkout> }) {
   );
 }
 
-export function ExercisePicker({ exclude, onPick, onFocus, create = true }: { exclude: string[]; onPick: (exerciseId: string) => void; onFocus?: () => void; create?: boolean }) {
+export function ExercisePicker({ exclude, onPick, onFocus, create = true, mode }: { exclude: string[]; onPick: (exerciseId: string) => void; onFocus?: () => void; create?: boolean; mode?: Mode }) {
   const c = useColors();
   const [query, setQuery] = useState('');
   const [copying, setCopying] = useState(false);
   const [from, setFrom] = useState<{ id: string; name: string }>();
-  const found = ops.listExercises(db, query, 51 + exclude.length).filter((x) => copying || !exclude.includes(x.id));
+  const found = ops.listExercises(db, query, mode ? -1 : 51 + exclude.length).filter((x) => copying || (!exclude.includes(x.id) && (!mode || x.mode === mode)));
 
   return (
     <Animated.View entering={FadeIn.duration(160)} style={[styles.card, { backgroundColor: c.surface, paddingVertical: space.xs }]}>

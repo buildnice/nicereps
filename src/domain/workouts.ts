@@ -277,6 +277,14 @@ export const removeExercise = (db: Db, workoutExerciseId: string) =>
     q.deleteRow(db, 'workout_exercise', workoutExerciseId);
   });
 
+export const swapExercise = (db: Db, workoutExerciseId: string, exerciseId: string) =>
+  transaction(db, () => {
+    const [was, now] = [q.workoutExerciseMode(db, workoutExerciseId), q.exerciseMode(db, exerciseId)];
+    // Sets keep their fields, so the new exercise must log the same ones.
+    if (was !== now) throw new Error(`Swap with another ${was} exercise, not a ${now} one`);
+    q.swapWorkoutExercise(db, workoutExerciseId, exerciseId);
+  });
+
 export const moveExercise = (db: Db, workoutExerciseId: string, to: number) => transaction(db, () => q.moveRow(db, 'workout_exercise', workoutExerciseId, to));
 
 export const moveExerciseBlock = (db: Db, workoutExerciseId: string, step: -1 | 1) =>

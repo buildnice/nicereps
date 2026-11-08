@@ -31,7 +31,7 @@ HOME (one vertical scroll; no tabs)
 
 ACTIVE WORKOUT (replaces home content)
   Workout header ->  Name (✎ to rename) / elapsed time / finish / discard
-  Exercise list  ->  Tap to expand sets and notes; ⋮ for bar, notes, history, how-to
+  Exercise list  ->  Tap to expand sets and notes; ⋮ for bar, notes, history, how-to, copy, swap
   Set row        ->  Weight + reps (target greyed) + large Complete target
                      bodyweight lifts show + body weight under weight; tap to log it;
                      with no added weight, the field shows BW greyed
