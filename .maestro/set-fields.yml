@@ -1,5 +1,5 @@
 appId: com.buildnice.nicereps
-name: A set's ⋮ shows and hides its optional field switches, keeping their values
+name: A set's ⋮ opens a sheet of field switches; switched-on fields stay in the row, switched-off ones keep their values
 ---
 - runFlow: common/launch.yml
 - tapOn: Start workout
@@ -9,30 +9,38 @@ name: A set's ⋮ shows and hides its optional field switches, keeping their val
 - runFlow: {file: common/expand.yml, env: {NAME: Barbell Bench Press - Medium Grip}}
 - swipe: {from: "Set 1 reps.*", direction: LEFT}
 - tapOn: Set 1 options
+# Several fields switch on from one sheet.
 - tapOn: Set 1 Target RPE
-- assertVisible: {text: "Set 1 Target RPE, empty", selected: true}
-- tapOn: Done
 - tapOn: Set 1 RPE
-# Switching a field on focuses its input.
-- assertVisible: {text: "Set 1 RPE, empty", selected: true}
-- runFlow: {file: common/type.yml, env: {KEYS: "8"}}
-- takeScreenshot: set-fields-editing
-- tapOn: Done
 - tapOn: Set 1 Comment
+- assertVisible: {text: Set 1 RPE, checked: true}
+- takeScreenshot: set-fields-sheet
+- tapOn: Done
+# The sheet leaves no switches behind; the fields sit in the row.
+- assertNotVisible: Done
+- assertNotVisible: Set 1 Target RPE
+- assertVisible: "Set 1 Target RPE, empty"
+- tapOn: "Set 1 RPE, empty"
+- runFlow: {file: common/type.yml, env: {KEYS: "8"}}
+- tapOn: Done
+- tapOn: Set 1 comment
 - inputText: Sluggish
 - hideKeyboard
-- takeScreenshot: set-fields-open
-# Closing with a field still being edited hides it too.
-- tapOn: "Set 1 RPE, 8"
+- assertVisible: "Set 1 RPE, 8"
+- takeScreenshot: set-fields-row
+# Switching a field off hides it and keeps its value.
 - swipe: {from: "Set 1 reps.*", direction: LEFT}
 - tapOn: Set 1 options
+- tapOn: Set 1 RPE
+- tapOn: Set 1 Comment
+- tapOn: Done
 - assertNotVisible: "Set 1 RPE.*"
-- assertNotVisible: "Set 1 Target RPE.*"
 - assertNotVisible: Set 1 comment
-- assertNotVisible: Set 1 Comment
-- assertNotVisible: Done
-- takeScreenshot: set-fields-closed
+- assertVisible: "Set 1 Target RPE, empty"
 - swipe: {from: "Set 1 reps.*", direction: LEFT}
 - tapOn: Set 1 options
+- tapOn: Set 1 RPE
+- tapOn: Set 1 Comment
+- tapOn: Done
 - assertVisible: "Set 1 RPE, 8"
 - assertVisible: Sluggish
