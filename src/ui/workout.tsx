@@ -1220,7 +1220,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
                 >
                   <Txt variant="label" tone={on ? undefined : 'muted'}>{fieldNames[field]}</Txt>
                   <View style={[styles.toggle, { backgroundColor: on ? c.accent : c.raised }]}>
-                    <Txt variant="small" tone={on ? 'onAccent' : 'muted'} style={{ fontWeight: '700' }}>{on ? 'On' : 'Off'}</Txt>
+                    <Txt variant="small" tone={on ? 'onAccent' : 'muted'} style={{ fontWeight: '700' }}>{on ? 'Show' : 'Hide'}</Txt>
                   </View>
                 </Tap>
               );
