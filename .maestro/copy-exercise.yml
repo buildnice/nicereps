@@ -12,10 +12,8 @@ name: Copy an exercise as a custom one
     direction: UP
 - tapOn: Barbell Bench Press - Medium Grip
 - waitForAnimationToEnd
+# ⋮ opens the options sheet.
 - tapOn: Barbell Bench Press - Medium Grip options
-- scrollUntilVisible:
-    element: Copy Barbell Bench Press - Medium Grip as a custom exercise
-    centerElement: true
 - tapOn: Copy Barbell Bench Press - Medium Grip as a custom exercise
 - scrollUntilVisible:
     element: "Barbell Bench Press - Medium Grip \\(copy\\)"

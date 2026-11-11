@@ -32,6 +32,7 @@ const usage = `Usage: nicereps <db-file> <command> [args]
   restore-set <json>                    put a deleted set back at its position
   move-set <set> <index>
   remove-exercise <workout-exercise>
+  swap-exercise <workout-exercise> <exercise>  log its sets under another exercise of the same mode
   move-exercise <workout-exercise> up|down  moves its superset block with it
   superset <workout-exercise> <workout-exercise>
   unlink <workout-exercise>
@@ -135,6 +136,7 @@ const required: Record<string, number> = {
   'restore-set': 1,
   'move-set': 2,
   'remove-exercise': 1,
+  'swap-exercise': 2,
   'move-exercise': 2,
   superset: 2,
   unlink: 1,
@@ -364,6 +366,9 @@ try {
       break;
     case 'remove-exercise':
       ops.removeExercise(db, args[0]);
+      break;
+    case 'swap-exercise':
+      ops.swapExercise(db, args[0], exerciseId(db, args[1]));
       break;
     case 'move-exercise':
       if (args[1] !== 'up' && args[1] !== 'down') throw new Error(`Expected up or down: ${args[1]}`);

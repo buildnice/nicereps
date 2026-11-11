@@ -398,3 +398,29 @@ test('an exercise added after another lands after its superset block, in the ord
   assert.deepEqual(names(), ['Bench Press', 'Run', 'Bike Sprints', 'Plank', 'Mobility Flow']);
   assert.throws(() => ops.addExercise(db, w, id('Bench Press'), 'missing'), /Not found/);
 });
+
+test('swapping an exercise keeps its sets, note, place and superset, and moves history and muscles to the new one', () => {
+  const { db, id } = setup();
+  const w = ops.startWorkout(db);
+  const [pushdown, bench] = ['Reverse Grip Triceps Pushdown', 'Bench Press'].map((name) => ops.addExercise(db, w, id(name)));
+  ops.linkSuperset(db, pushdown, bench);
+  ops.addSet(db, pushdown, { weight: 30, reps: 12, targetRpe: 8, rest: 90, comment: 'cables busy', completed: true });
+  ops.addSet(db, pushdown, { weight: 30, reps: 10 });
+  ops.noteExercise(db, pushdown, 'elbows tucked');
+  const before = ops.getWorkout(db, w).exercises;
+
+  assert.throws(() => ops.swapExercise(db, pushdown, id('Plank')), /reps exercise, not a duration one/);
+  assert.ok(ops.listExercises(db, 'plank', -1, 'duration').every((e) => e.mode === 'duration'));
+  assert.ok(ops.listExercises(db, 'plank', -1, 'reps').some((e) => e.name === 'Push Up to Side Plank'));
+  ops.swapExercise(db, pushdown, id('EZ-Bar Skullcrusher'));
+  const after = ops.getWorkout(db, w).exercises;
+  assert.deepEqual(after.map((e) => e.name), ['EZ-Bar Skullcrusher', 'Bench Press']);
+  assert.deepEqual({ ...after[0], exerciseId: 0, name: 0, source: 0, exerciseNote: 0, mapping: 0 }, { ...before[0], exerciseId: 0, name: 0, source: 0, exerciseNote: 0, mapping: 0 });
+  assert.equal(after[0].superset, after[1].superset);
+  assert.deepEqual(after[0].mapping, ops.exerciseDraft(db, id('EZ-Bar Skullcrusher')).mapping);
+
+  ops.finishWorkout(db, w);
+  assert.equal(ops.history(db, 'EZ-Bar Skullcrusher').length, 1);
+  assert.equal(ops.history(db, 'Reverse Grip Triceps Pushdown').length, 0);
+  assert.equal(ops.progress(db, 'EZ-Bar Skullcrusher').sessions[0].sets.length, 2);
+});

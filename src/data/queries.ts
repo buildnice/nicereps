@@ -103,10 +103,12 @@ export const exercise = (db: Db, id: string) => {
 
 export const exerciseId = (db: Db, name: string) => one(db, 'SELECT id FROM exercise WHERE name = ?', [name]).id as string;
 
-export const exercises = (db: Db, query = '', limit = -1) => {
+export const exercises = (db: Db, query = '', limit = -1, mode: Mode | null = null) => {
   const words = query.split(/\s+/).filter(Boolean).map((w) => `%${w.replace(/[\\%_]/g, '\\$&')}%`);
   return db
-    .all(`SELECT id, name, mode, source, equipment, bar, bar_unit FROM exercise WHERE ${['1', ...words.map(() => "name LIKE ? ESCAPE '\\'")].join(' AND ')} ORDER BY source IS NOT NULL, name LIMIT ?`, [
+    .all(`SELECT id, name, mode, source, equipment, bar, bar_unit FROM exercise WHERE ${['(? IS NULL OR mode = ?)', ...words.map(() => "name LIKE ? ESCAPE '\\'")].join(' AND ')} ORDER BY source IS NOT NULL, name LIMIT ?`, [
+      mode,
+      mode,
       ...words,
       limit,
     ])
@@ -345,6 +347,12 @@ export const updateWorkoutDate = (db: Db, id: string, date: string) => {
   db.run('UPDATE workout SET date = ? WHERE id = ?', [date, id]);
 };
 
+export const swapWorkoutExercise = (db: Db, workoutExerciseId: string, exerciseId: string) => {
+  db.run('UPDATE workout_exercise SET exercise_id = ? WHERE id = ?', [exerciseId, workoutExerciseId]);
+  db.run('DELETE FROM workout_exercise_muscle WHERE workout_exercise_id = ?', [workoutExerciseId]);
+  db.run('INSERT INTO workout_exercise_muscle (workout_exercise_id, muscle, role) SELECT ?, muscle, role FROM exercise_muscle WHERE exercise_id = ?', [workoutExerciseId, exerciseId]);
+};
+
 export const replaceWorkoutMapping = (db: Db, workoutExerciseId: string, mapping: Mapping) => {
   one(db, 'SELECT id FROM workout_exercise WHERE id = ?', [workoutExerciseId]);
   db.run('DELETE FROM workout_exercise_muscle WHERE workout_exercise_id = ?', [workoutExerciseId]);
@@ -443,6 +451,9 @@ export const setMode = (db: Db, workoutExerciseId: string) =>
   one(db, 'SELECT e.mode FROM workout_exercise we JOIN exercise e ON e.id = we.exercise_id WHERE we.id = ?', [workoutExerciseId]).mode as Mode;
 
 export const exerciseMode = (db: Db, id: string) => one(db, 'SELECT mode FROM exercise WHERE id = ?', [id]).mode as Mode;
+
+export const workoutExerciseMode = (db: Db, id: string) =>
+  one(db, 'SELECT e.mode FROM workout_exercise we JOIN exercise e ON e.id = we.exercise_id WHERE we.id = ?', [id]).mode as Mode;
 
 export const starRecord = (db: Db, id: string, exerciseId: string, kind: string, starred: boolean) => {
   if (starred) db.run('INSERT OR IGNORE INTO starred_record (id, exercise_id, kind) VALUES (?, ?, ?)', [id, exerciseId, kind]);

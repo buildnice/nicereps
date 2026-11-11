@@ -1,0 +1,28 @@
+appId: com.buildnice.nicereps
+name: Swap an exercise with another, keeping its sets
+---
+- runFlow: common/launch.yml
+- tapOn: Start workout
+- tapOn: Fresh workout
+- runFlow: {file: common/add-exercise.yml, env: {QUERY: Grip Triceps Push, NAME: Reverse Grip Triceps Pushdown}}
+- runFlow: {file: common/set.yml, env: {N: "1", WEIGHT: "30", REPS: "12"}}
+# Completing the only set collapses the card.
+- tapOn: Skip
+- tapOn: Reverse Grip Triceps Pushdown
+- waitForAnimationToEnd
+# ⋮ opens the options sheet.
+- tapOn: Reverse Grip Triceps Pushdown options
+- tapOn: Swap Reverse Grip Triceps Pushdown with another exercise
+# The picker lists only exercises that log the same fields.
+- tapOn: Search exercises
+- inputText: Treadmill
+- hideKeyboard
+- assertVisible: No match.
+- tapOn: Search exercises
+- eraseText
+- inputText: EZ-Bar Skull
+- hideKeyboard
+- tapOn: "EZ-Bar Skullcrusher, Weight × reps.*"
+- assertVisible: EZ-Bar Skullcrusher
+- assertNotVisible: Reverse Grip Triceps Pushdown
+- assertVisible: Set 1 weight, 30

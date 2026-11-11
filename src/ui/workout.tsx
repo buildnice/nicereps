@@ -182,6 +182,8 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const [howTo, setHowTo] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
+  const [swapping, setSwapping] = useState<string | null>(null);
+  const [options, setOptions] = useState<{ id: string; name: string; guide: boolean; open: boolean } | null>(null);
   const [flagged, setFlagged] = useState<string[]>([]);
   const placed = useRef<{ y: number; height: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -489,7 +491,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
               <Tap accessibilityLabel={`${exercise.name}, collapse`} onPress={() => show(null)} style={{ flex: 1, justifyContent: 'center' }}>
                 <Txt variant="heading">{exercise.name}</Txt>
               </Tap>
-              <Tap accessibilityLabel={`${exercise.name} options`} accessibilityState={{ expanded: menu === exercise.id }} onPress={() => { setMenu(menu === exercise.id ? null : exercise.id); if (barEdit) setEdit(null); }} style={styles.menu}>
+              <Tap accessibilityLabel={`${exercise.name} options`} accessibilityState={{ expanded: options?.id === exercise.id && options.open }} onPress={() => { setMenu(exercise.id); setOptions({ id: exercise.id, name: exercise.name, guide: !!guide, open: true }); if (barEdit) setEdit(null); }} style={styles.menu}>
                 <Icon of={DotsThreeVerticalIcon} />
               </Tap>
             </View>
@@ -517,7 +519,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                     </Txt>
                   </Tap>
                 )}
-                <ExerciseNote key={visit} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} onFocus={() => setEdit(null)} save={run} />
+                <ExerciseNote key={`${exercise.exerciseId}:${visit}`} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} onFocus={() => setEdit(null)} save={run} />
                 <TextInput
                   defaultValue={exercise.note ?? ''}
                   onChangeText={(t) => run(() => ops.noteExercise(db, exercise.id, t))}
@@ -528,32 +530,18 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                   multiline
                   style={[styles.exerciseNote, { color: c.text }]}
                 />
-                <View style={[styles.actions, { marginTop: 0 }]}>
-                  <Tap
-                    accessibilityState={{ expanded: history === exercise.id }}
-                    onPress={() => setHistory(history === exercise.id ? null : exercise.id)}
-                    style={[styles.action, { borderColor: c.line }]}
-                  >
-                    <Txt variant="label" tone="muted">History</Txt>
-                  </Tap>
-                  {guide && (
-                    <Tap
-                      accessibilityState={{ expanded: howTo === exercise.id }}
-                      onPress={() => setHowTo(howTo === exercise.id ? null : exercise.id)}
-                      style={[styles.action, { borderColor: c.line }]}
-                    >
-                      <Txt variant="label" tone="muted">How to</Txt>
-                    </Tap>
-                  )}
-                  <Tap
-                    accessibilityLabel={`Copy ${exercise.name} as a custom exercise`}
-                    accessibilityState={{ expanded: copying === exercise.id }}
-                    onPress={() => setCopying(copying === exercise.id ? null : exercise.id)}
-                    style={[styles.action, { borderColor: c.line }]}
-                  >
-                    <Txt variant="label" tone="muted">Copy as custom</Txt>
-                  </Tap>
-                </View>
+                {swapping === exercise.id && (
+                  <ExercisePicker
+                    exclude={exercises.map((x) => x.exerciseId)}
+                    mode={exercise.mode}
+                    create={false}
+                    onFocus={() => setEdit(null)}
+                    onPick={(picked) => {
+                      setSwapping(null);
+                      run(() => ops.swapExercise(db, exercise.id, picked));
+                    }}
+                  />
+                )}
                 {copying === exercise.id && (
                   <Animated.View entering={FadeIn.duration(160)}>
                     <NewExercise
@@ -685,6 +673,41 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
           </Animated.View>
         )}
       </Animated.View>
+      <BottomSheet modal open={!!options?.open} onClose={() => setOptions((o) => o && { ...o, open: false })}>
+        {options && (
+          <View style={[sheet.sheet, { backgroundColor: c.raised, borderColor: c.line, paddingBottom: insets.bottom + space.s }]}>
+            <View style={[sheet.grabber, { backgroundColor: c.faint }]} />
+            <View style={sheet.head}>
+              <Txt variant="label" tone="muted" numberOfLines={1} style={{ flex: 1 }}>{options.name}</Txt>
+              <Tap accessibilityLabel="Done" onPress={() => setOptions({ ...options, open: false })} style={{ paddingHorizontal: space.m }}>
+                <Txt variant="label">Done</Txt>
+              </Tap>
+            </View>
+            <View style={[styles.group, { backgroundColor: c.line, marginTop: 0 }]}>
+              {([
+                ['History', history, setHistory, true],
+                ['How to', howTo, setHowTo, options.guide],
+                ['Copy as custom', copying, setCopying, true],
+                ['Swap with', swapping, setSwapping, true],
+              ] as const).filter(([, , , shown]) => shown).map(([label, value, set]) => (
+                <Tap
+                  key={label}
+                  accessibilityLabel={label === 'Copy as custom' ? `Copy ${options.name} as a custom exercise` : label === 'Swap with' ? `Swap ${options.name} with another exercise` : label}
+                  accessibilityState={{ expanded: value === options.id }}
+                  onPress={() => {
+                    set(value === options.id ? null : options.id);
+                    setOptions({ ...options, open: false });
+                  }}
+                  style={[styles.option, { backgroundColor: c.surface }]}
+                >
+                  <Txt variant="label">{label}</Txt>
+                  {value === options.id && <Icon of={CheckIcon} size="s" tone="muted" />}
+                </Tap>
+              ))}
+            </View>
+          </View>
+        )}
+      </BottomSheet>
       <BottomSheet open={!!edit} onClose={() => setEdit(null)} onHeight={setSheetHeight}>
         {shown && (
           <Keypad
@@ -720,12 +743,12 @@ function Totals({ workout }: { workout: ReturnType<typeof ops.getWorkout> }) {
   );
 }
 
-export function ExercisePicker({ exclude, onPick, onFocus, create = true }: { exclude: string[]; onPick: (exerciseId: string) => void; onFocus?: () => void; create?: boolean }) {
+export function ExercisePicker({ exclude, onPick, onFocus, create = true, mode }: { exclude: string[]; onPick: (exerciseId: string) => void; onFocus?: () => void; create?: boolean; mode?: Mode }) {
   const c = useColors();
   const [query, setQuery] = useState('');
   const [copying, setCopying] = useState(false);
   const [from, setFrom] = useState<{ id: string; name: string }>();
-  const found = ops.listExercises(db, query, 51 + exclude.length).filter((x) => copying || !exclude.includes(x.id));
+  const found = ops.listExercises(db, query, 51 + exclude.length, copying ? null : mode).filter((x) => copying || !exclude.includes(x.id));
 
   return (
     <Animated.View entering={FadeIn.duration(160)} style={[styles.card, { backgroundColor: c.surface, paddingVertical: space.xs }]}>
