@@ -1,16 +1,21 @@
 import { Canvas, Circle, Path, Skia } from '@shopify/react-native-skia';
 import { router, useLocalSearchParams } from 'expo-router';
+import { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
+import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { type RefObject, useRef, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
-import { convert } from '@/domain/rules';
+import { convert, type OptionalField, shownFields } from '@/domain/rules';
 import * as ops from '@/domain/workouts';
 import { shareImage } from '@/platform/data';
 import { db } from '@/platform/db';
 
 import { MuscleBreakdown, parseDate, Section } from './home';
 import { Page } from './measurements';
-import { Choice, clock, describeSet, inUnit, radius, space, Tap, Txt, type, useColors, usePrototype } from './theme';
+import { Choice, clock, describeSet, Icon, inUnit, radius, space, Tap, Txt, type, useColors, usePrototype } from './theme';
+import { fieldNames, fieldText } from './workout';
 
 type Summary = ReturnType<typeof ops.workoutSummary>;
 type Exercise = Summary['exercises'][number];
@@ -307,72 +312,130 @@ function Tile({ label, value, unit, inverted, spoken = value }: { label: string;
   );
 }
 
+// plates is derived from the weight, not recorded.
+const recorded = (s: Exercise['sets'][number]): [OptionalField, string][] =>
+  shownFields(s).flatMap((f): [OptionalField, string][] => {
+    const v = f === 'plates' ? '' : f === 'comment' ? (s.comment ?? '') : fieldText(f, s[f]);
+    return v ? [[f, v]] : [];
+  });
+
 function ExerciseCard({ exercise: e }: { exercise: Exercise }) {
   const c = useColors();
   const { units } = usePrototype();
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<number | null>(null);
   const done = e.sets.filter((s) => s.completed);
   const working = done.filter((s) => s.type !== 'warm-up').length;
   const t = e.top && inUnit(e.top, units);
   const estimate = e.top && e.estimate && `${inUnit({ ...e.top, weight: e.estimate }, units).weight.toFixed(1)} ${units.weight}${e.top.bodyWeight ? ' with body weight' : ''}`;
+  const label = (s: (typeof done)[number]) => `${e.records.includes(s.id) ? '◆ ' : s.type === 'warm-up' ? 'W ' : ''}${describeSet(s, e.mode, units)}`;
+  const comments = done.filter((s) => recorded(s).some(([f]) => f === 'comment')).length;
+  const details = done.some((s) => recorded(s).length);
+  const toggle = details ? () => setOpen(!open) : undefined;
+  const point = (i: number) => {
+    const p = e.trend[i];
+    const day = parseDate(p.date);
+    const date = day.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: day.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+    return `${e.mode === 'reps' ? `e1RM ${convert(p.value, 'kg', units.weight).toFixed(1)} ${units.weight}` : `hold ${clock(p.value)}`} · ${date}`;
+  };
   return (
-    <Section
-      title={e.name}
-      action={
-        e.records.length ? (
-          <View style={[styles.pill, { backgroundColor: c.accent }]}>
-            <Txt variant="caps" tone="onAccent">◆ Record</Txt>
-          </View>
-        ) : (
-          <Txt variant="meta" tone="muted">{working} set{working === 1 ? '' : 's'}</Txt>
-        )
-      }
-    >
-      {t && (
-        <View style={styles.hero}>
-          <View style={{ flex: 1 }}>
-            {e.mode === 'reps' ? (
-              <Txt variant="title">{t.weight}<Txt variant="value">{` × ${t.reps}`}</Txt></Txt>
-            ) : (
-              <Txt variant="title">{clock(t.duration ?? 0)}{t.weight > 0 && <Txt variant="value">{` @ ${t.weight} ${units.weight}`}</Txt>}</Txt>
-            )}
-            <Txt variant="meta" tone="muted">{e.mode === 'reps' ? `top set${estimate ? ` · e1RM ${estimate}` : ''}` : 'longest hold'}</Txt>
-          </View>
-          {e.trend.length > 1 && <Sparkline values={e.trend.map((p) => p.value)} label={e.mode === 'reps' ? 'e1RM' : 'longest hold'} />}
-        </View>
-      )}
-      <View style={[styles.chips, !t && { marginTop: 0 }]}>
-        {done.map((s) => {
-          const record = e.records.includes(s.id);
-          return (
-            <View key={s.id} accessible accessibilityLabel={`${record ? 'Record, ' : s.type === 'warm-up' ? 'Warm-up, ' : ''}${describeSet(s, e.mode, units)}`} style={[styles.chip, { borderColor: c.line, opacity: s.type === 'warm-up' ? 0.5 : 1 }, record && { backgroundColor: c.accent, borderColor: c.accent }]}>
-              <Txt variant="label" tone={record ? 'onAccent' : 'text'}>
-                {record ? '◆ ' : s.type === 'warm-up' ? 'W ' : ''}
-                {describeSet(s, e.mode, units)}
-              </Txt>
+    // Touch-only toggle for the whole card; screen readers use the details button below so the sparkline stays reachable.
+    <Tap onPress={toggle} accessible={false}>
+      <Section
+        title={e.name}
+        action={
+          e.records.length ? (
+            <View style={[styles.pill, { backgroundColor: c.accent }]}>
+              <Txt variant="caps" tone="onAccent">◆ Record</Txt>
             </View>
-          );
-        })}
-        {!done.length && <Txt variant="meta" tone="muted">No completed sets</Txt>}
-      </View>
-    </Section>
+          ) : (
+            <Txt variant="meta" tone="muted">{working} set{working === 1 ? '' : 's'}</Txt>
+          )
+        }
+      >
+        {t && (
+          <View style={styles.hero}>
+            <View style={{ flex: 1 }}>
+              {e.mode === 'reps' ? (
+                <Txt variant="title">{t.weight}<Txt variant="value">{` × ${t.reps}`}</Txt></Txt>
+              ) : (
+                <Txt variant="title">{clock(t.duration ?? 0)}{t.weight > 0 && <Txt variant="value">{` @ ${t.weight} ${units.weight}`}</Txt>}</Txt>
+              )}
+              <Txt variant="meta" tone="muted">{at !== null ? point(at) : e.mode === 'reps' ? `top set${estimate ? ` · e1RM ${estimate}` : ''}` : 'longest hold'}</Txt>
+            </View>
+            {e.trend.length > 1 && <Sparkline values={e.trend.map((p) => p.value)} label={e.mode === 'reps' ? 'e1RM' : 'longest hold'} at={at} onAt={setAt} describe={point} />}
+          </View>
+        )}
+        <View style={[styles.chips, !t && { marginTop: 0 }]}>
+          {done.map((s) => {
+            const record = e.records.includes(s.id);
+            return (
+              <View key={s.id} accessible accessibilityLabel={`${record ? 'Record, ' : s.type === 'warm-up' ? 'Warm-up, ' : ''}${describeSet(s, e.mode, units)}`} style={[styles.chip, { borderColor: c.line, opacity: s.type === 'warm-up' ? 0.5 : 1 }, record && { backgroundColor: c.accent, borderColor: c.accent }]}>
+                <Txt variant="label" tone={record ? 'onAccent' : 'text'}>{label(s)}</Txt>
+              </View>
+            );
+          })}
+          {!done.length && <Txt variant="meta" tone="muted">No completed sets</Txt>}
+        </View>
+        {details && (
+          <Tap onPress={toggle} accessibilityState={{ expanded: open }} style={styles.more}>
+            <Txt variant="meta" tone="muted" style={{ flex: 1 }}>{comments ? `${comments} comment${comments === 1 ? '' : 's'}` : 'Set details'}</Txt>
+            <Icon of={open ? CaretDownIcon : CaretRightIcon} tone="faint" />
+          </Tap>
+        )}
+        {open && (
+          <Animated.View entering={FadeIn.duration(160)}>
+            {done.map((s) => (
+              <View key={s.id} accessible style={[styles.detail, { borderColor: c.line }]}>
+                <Txt variant="label">{label(s)}</Txt>
+                {recorded(s).map(([f, v]) => (
+                  <Txt key={f} variant="meta" tone={f === 'comment' ? 'text' : 'muted'}>{f === 'comment' ? v : `${fieldNames[f]} ${v}`}</Txt>
+                ))}
+              </View>
+            ))}
+          </Animated.View>
+        )}
+      </Section>
+    </Tap>
   );
 }
 
-function Sparkline({ values, label }: { values: number[]; label: string }) {
+function Sparkline({ values, label, at, onAt, describe }: { values: number[]; label: string; at: number | null; onAt: (i: number | null) => void; describe: (i: number) => string }) {
   const c = useColors();
   const min = Math.min(...values);
   const max = Math.max(...values);
   const points = values.map((v, i) => ({ x: dot + (i / (values.length - 1)) * (sparkWidth - 2 * dot), y: dot + (max > min ? (max - v) / (max - min) : 0.5) * (sparkHeight - 2 * dot) }));
   const line = Skia.Path.Make();
   points.forEach(({ x, y }, i) => (i ? line.lineTo(x, y) : line.moveTo(x, y)));
-  const last = points[points.length - 1];
+  const shown = points[at ?? points.length - 1];
+  const nearest = (x: number) => Math.min(values.length - 1, Math.max(0, Math.round(((x - dot) / (sparkWidth - 2 * dot)) * (values.length - 1))));
+  // Horizontal only, so a vertical drag starting here still scrolls the page.
+  const scrub = Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetX([-8, 8])
+    .failOffsetY([-8, 8])
+    .onBegin((g) => onAt(nearest(g.x)))
+    .onUpdate((g) => onAt(nearest(g.x)))
+    .onFinalize(() => onAt(null));
+  const step = (by: number) => onAt(Math.min(values.length - 1, Math.max(0, (at ?? values.length - 1) + by)));
   return (
-    <View accessible accessibilityLabel={`${label} trend over ${values.length} sessions, ${values.at(-1)! > values[0] ? 'up' : values.at(-1)! < values[0] ? 'down' : 'level'} since the first`}>
-      <Canvas style={{ width: sparkWidth, height: sparkHeight }}>
-        <Path path={line} style="stroke" strokeWidth={4} strokeJoin="round" strokeCap="round" color={c.heat[2]} />
-        <Circle cx={last.x} cy={last.y} r={dot} color={c.text} />
-      </Canvas>
-    </View>
+    <GestureDetector gesture={scrub}>
+      <View
+        // Claims the touch so a tap on the graph doesn't also toggle the card.
+        onStartShouldSetResponder={() => true}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel={`${label} trend over ${values.length} sessions, ${values.at(-1)! > values[0] ? 'up' : values.at(-1)! < values[0] ? 'down' : 'level'} since the first`}
+        accessibilityValue={{ text: describe(at ?? values.length - 1) }}
+        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+        onAccessibilityAction={(a) => step(a.nativeEvent.actionName === 'increment' ? 1 : -1)}
+      >
+        <Canvas style={{ width: sparkWidth, height: sparkHeight }}>
+          <Path path={line} style="stroke" strokeWidth={4} strokeJoin="round" strokeCap="round" color={c.heat[2]} />
+          <Circle cx={shown.x} cy={shown.y} r={dot} color={c.text} />
+        </Canvas>
+      </View>
+    </GestureDetector>
   );
 }
 
@@ -393,6 +456,8 @@ const styles = StyleSheet.create({
   pill: { borderRadius: radius.pill, paddingHorizontal: space.m, paddingVertical: space.xs },
   hero: { flexDirection: 'row', alignItems: 'flex-end', gap: space.m },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.m },
+  more: { flexDirection: 'row', alignItems: 'center', marginTop: space.s },
+  detail: { paddingVertical: space.s, borderTopWidth: StyleSheet.hairlineWidth, gap: space.xs },
   chip: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.m, minHeight: 36, justifyContent: 'center' },
   actions: { flexDirection: 'row', gap: space.s, marginTop: space.l },
   action: { minHeight: 56, borderRadius: radius.m, alignItems: 'center' },

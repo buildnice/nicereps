@@ -991,7 +991,7 @@ const popIn = new Keyframe({
   100: { transform: [{ scale: 1 }], easing: Easing.bezier(0.77, 0, 0.175, 1) },
 }).duration(320).delay(160);
 const needReps = 'Enter reps to complete this set, 0 if none';
-const fieldNames: Record<OptionalField, string> = { targetRpe: 'Target RPE', rpe: 'RPE', rest: 'Rest', comment: 'Comment', plates: 'Plates' };
+export const fieldNames: Record<OptionalField, string> = { targetRpe: 'Target RPE', rpe: 'RPE', rest: 'Rest', comment: 'Comment', plates: 'Plates' };
 
 export const setLabel = (sets: { type: string }[], j: number) =>
   sets[j].type === 'warm-up' ? 'W' : sets[j].type === 'drop' ? 'D' : String(sets.slice(0, j + 1).filter((x) => x.type === 'normal').length);
