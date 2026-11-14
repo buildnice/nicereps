@@ -9,6 +9,7 @@ import { DotsThreeIcon } from 'phosphor-react-native/src/icons/DotsThree';
 import { PlusIcon } from 'phosphor-react-native/src/icons/Plus';
 import { StarIcon } from 'phosphor-react-native/src/icons/Star';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { localDate, phaseAt } from '@/domain/rules';
 import * as ops from '@/domain/workouts';
@@ -16,16 +17,18 @@ import { db, readSetting, writeSetting } from '@/platform/db';
 import { syncHealth } from '@/platform/health';
 import type { Timer } from '@/platform/notifications';
 
+import { styles as sheet } from './keypad';
 import { Measurements } from './measurements';
 import { RecordTrend, recordLabel, volumeLabel } from './stats';
 import { DayPlan, remind, today } from './plan';
+import { BottomSheet } from './sheet';
 import { Templates } from './templates';
 import { clock, Digits, Icon, radius, space, Tap, touch, Txt, useColors, usePrototype } from './theme';
 
 export const dayLabel = (date: Date) => date.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' });
 
 type Active = { name: string; startedAt: number };
-type Start = (from: { templateId?: string; fromWorkoutId?: string }) => void;
+type Start = (from: { templateId?: string; fromWorkoutId?: string; numbers?: 'last' | 'template' }) => void;
 type Edit = (workoutId: string) => void;
 type Finished = ReturnType<typeof ops.history>[number];
 
@@ -82,8 +85,16 @@ function Strip({ workout }: { workout: Unfinished }) {
 
 export function Home({ onStart, onResume, onEdit, active }: { onStart: Start; onResume: () => void; onEdit: Edit; active: Active | null }) {
   const c = useColors();
+  const insets = useSafeAreaInsets();
   const [choosing, setChoosing] = useState(false);
   const [templates, setTemplates] = useState(() => ops.listTemplates(db));
+  // Every template start asks which numbers to use; Repeat already carries its own.
+  const [pick, setPick] = useState<{ templateId: string; open: boolean } | null>(null);
+  const start: Start = (from) => (from.templateId ? setPick({ templateId: from.templateId, open: true }) : onStart(from));
+  const startWith = (numbers: 'last' | 'template') => {
+    setPick(pick && { ...pick, open: false });
+    if (pick) onStart({ templateId: pick.templateId, numbers });
+  };
   const refresh = () => {
     setTemplates(ops.listTemplates(db));
     remind();
@@ -131,7 +142,7 @@ export function Home({ onStart, onResume, onEdit, active }: { onStart: Start; on
           <Icon of={choosing ? CaretUpIcon : CaretDownIcon} tone="onAccent" />
         </Tap>
       )}
-      {choosing && !active && <StartChoices onStart={onStart} />}
+      {choosing && !active && <StartChoices onStart={start} />}
       <FirstRun templates={templates} />
       <BackupReminder />
       {ops.homeLayout(db).filter((s) => s.shown).map(({ id }) => (
@@ -141,11 +152,21 @@ export function Home({ onStart, onResume, onEdit, active }: { onStart: Start; on
             muscles: <MuscleSets />,
             stats: <StatsSummary />,
             recent: <Recent />,
-            templates: <Templates templates={templates} onStart={active ? undefined : onStart} onChange={refresh} />,
+            templates: <Templates templates={templates} onStart={active ? undefined : start} onChange={refresh} />,
             measurements: <Measurements />,
           }[id]}
         </Fragment>
       ))}
+      <BottomSheet modal open={!!pick?.open} onClose={() => setPick(pick && { ...pick, open: false })}>
+        {pick && (
+          <View style={[sheet.sheet, { backgroundColor: c.raised, borderColor: c.line, paddingBottom: insets.bottom + space.s }]}>
+            <View style={[sheet.grabber, { backgroundColor: c.faint }]} />
+            <Txt variant="label" tone="muted" numberOfLines={1}>{templates.find((t) => t.id === pick.templateId)?.name}</Txt>
+            <Row title="Use last session's weights and reps" meta="From the last time you did each exercise" onPress={() => startWith('last')} />
+            <Row title="Use template defaults" meta="The numbers saved in the template" onPress={() => startWith('template')} />
+          </View>
+        )}
+      </BottomSheet>
     </>
   );
 }

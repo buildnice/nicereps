@@ -213,9 +213,10 @@ export const startWorkout = (
   {
     templateId = null,
     fromWorkoutId = null,
+    numbers = 'template',
     now = new Date(),
     timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
-  }: { templateId?: string | null; fromWorkoutId?: string | null; now?: Date; timeZone?: string } = {},
+  }: { templateId?: string | null; fromWorkoutId?: string | null; numbers?: 'last' | 'template'; now?: Date; timeZone?: string } = {},
 ) =>
   transaction(db, () => {
     if (templateId && fromWorkoutId) throw new Error('Start from a template or a workout, not both');
@@ -227,7 +228,13 @@ export const startWorkout = (
     plan.exercises.forEach((e) => {
       const workoutExerciseId = createId();
       q.insertWorkoutExercise(db, workoutExerciseId, id, e.exerciseId, e.superset ? (groups[e.superset] ??= createId()) : null);
-      e.sets.forEach((s: PlannedSet) => q.insertSet(db, createId(), workoutExerciseId, { ...copied(s), reps: 0, targetReps: s.reps || s.targetReps || null, completed: false }));
+      // Same source as the Prev chip; the template keeps the set structure.
+      const last = numbers === 'last' && templateId ? (history(db, e.name, 1)[0]?.exercises[0]?.sets ?? []) : [];
+      e.sets.forEach((s: PlannedSet, i: number) => {
+        const p = last[i];
+        const set = p ? { ...s, weight: p.weight, unit: p.unit, reps: p.reps || p.targetReps || s.reps } : s;
+        q.insertSet(db, createId(), workoutExerciseId, { ...copied(set), reps: 0, targetReps: set.reps || set.targetReps || null, completed: false });
+      });
     });
     return id;
   });

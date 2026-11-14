@@ -106,3 +106,26 @@ test('template reps become targets: a blank set needs reps to be ticked, a typed
   const heavy = ops.getTemplate(db, ops.templateFromWorkout(db, w, 'Heavy', { weight: true, reps: false })).exercises[0].sets;
   assert.deepEqual([heavy[2].weight > 0, heavy[2].reps], [true, 0]);
 });
+
+test("a template can start with each exercise's last numbers, falling back to the template", () => {
+  const { db, pushA } = setup();
+  const w = ops.startWorkout(db, {});
+  const bench = ops.addExercise(db, w, exerciseId(db, 'Bench Press'));
+  ops.addSet(db, bench, { weight: 50, reps: 12, completed: true });
+  ops.addSet(db, bench, { weight: 90, reps: 5, completed: true });
+  ops.finishWorkout(db, w);
+  const plan = ops.getTemplate(db, pushA);
+  const dip = ops.createExercise(db, 'Dip', []);
+  ops.updateTemplate(db, pushA, plan.name, [...plan.exercises, { exerciseId: dip, sets: [{ type: 'normal', weight: 10, reps: 9 }] }]);
+
+  const sets = (id: string) => ops.getWorkout(db, id).exercises.map((e) => e.sets.map((s) => [s.type, s.weight, s.targetReps]));
+  const last = ops.startWorkout(db, { templateId: pushA, numbers: 'last' });
+  const [benchSets, ...rest] = sets(last);
+  // Set structure stays the template's; extra sets keep template values.
+  assert.deepEqual(benchSets, [['warm-up', 50, 12], ['normal', 90, 5], ['normal', 82.5, 8], ['normal', 82.5, 8]]);
+  assert.deepEqual(rest.at(-1), [['normal', 10, 9]]);
+  ops.discardWorkout(db, last);
+
+  const defaults = ops.startWorkout(db, { templateId: pushA });
+  assert.deepEqual(sets(defaults)[0], [['warm-up', 40, 10], ['normal', 82.5, 8], ['normal', 82.5, 8], ['normal', 82.5, 8]]);
+});
