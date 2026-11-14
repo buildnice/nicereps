@@ -106,3 +106,32 @@ test('template reps become targets: a blank set needs reps to be ticked, a typed
   const heavy = ops.getTemplate(db, ops.templateFromWorkout(db, w, 'Heavy', { weight: true, reps: false })).exercises[0].sets;
   assert.deepEqual([heavy[2].weight > 0, heavy[2].reps], [true, 0]);
 });
+
+test("a template can start with its last run's numbers, falling back to the template", () => {
+  const { db, pushA } = setup();
+  const run = ops.startWorkout(db, { templateId: pushA });
+  const [bench] = ops.getWorkout(db, run).exercises;
+  ops.correctSet(db, bench.sets[0].id, { weight: 50, reps: 12, completed: true });
+  ops.correctSet(db, bench.sets[1].id, { weight: 90, reps: 5, completed: true });
+  ops.deleteSet(db, bench.sets[2].id);
+  ops.deleteSet(db, bench.sets[3].id);
+  ops.finishWorkout(db, run, new Date(Date.now() - 60_000));
+  // Bench done later outside the template is ignored.
+  const other = ops.startWorkout(db, {});
+  ops.addSet(db, ops.addExercise(db, other, exerciseId(db, 'Bench Press')), { weight: 120, reps: 1, completed: true });
+  ops.finishWorkout(db, other);
+  const plan = ops.getTemplate(db, pushA);
+  const dip = ops.createExercise(db, 'Dip', []);
+  ops.updateTemplate(db, pushA, plan.name, [...plan.exercises, { exerciseId: dip, sets: [{ type: 'normal', weight: 10, reps: 9 }] }]);
+
+  const sets = (id: string) => ops.getWorkout(db, id).exercises.map((e) => e.sets.map((s) => [s.type, s.weight, s.targetReps]));
+  const last = ops.startWorkout(db, { templateId: pushA, numbers: 'last' });
+  const [benchSets, ...rest] = sets(last);
+  // Set structure stays the template's; sets and exercises the run lacked keep template values.
+  assert.deepEqual(benchSets, [['warm-up', 50, 12], ['normal', 90, 5], ['normal', 82.5, 8], ['normal', 82.5, 8]]);
+  assert.deepEqual(rest.at(-1), [['normal', 10, 9]]);
+  ops.discardWorkout(db, last);
+
+  const defaults = ops.startWorkout(db, { templateId: pushA });
+  assert.deepEqual(sets(defaults)[0], [['warm-up', 40, 10], ['normal', 82.5, 8], ['normal', 82.5, 8], ['normal', 82.5, 8]]);
+});

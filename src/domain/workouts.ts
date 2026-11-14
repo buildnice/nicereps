@@ -213,9 +213,10 @@ export const startWorkout = (
   {
     templateId = null,
     fromWorkoutId = null,
+    numbers = 'template',
     now = new Date(),
     timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
-  }: { templateId?: string | null; fromWorkoutId?: string | null; now?: Date; timeZone?: string } = {},
+  }: { templateId?: string | null; fromWorkoutId?: string | null; numbers?: 'last' | 'template'; now?: Date; timeZone?: string } = {},
 ) =>
   transaction(db, () => {
     if (templateId && fromWorkoutId) throw new Error('Start from a template or a workout, not both');
@@ -223,11 +224,21 @@ export const startWorkout = (
     const plan = fromWorkoutId ? getWorkout(db, fromWorkoutId) : templateId ? q.templatePlan(db, templateId) : { name: 'Workout', exercises: [] };
     const id = createId();
     const groups: Record<string, string> = {};
+    // The last finished run of this template; the template keeps the set structure.
+    const lastRun = numbers === 'last' && templateId ? q.workouts(db, 'finished_at IS NOT NULL AND template_id = ?', [templateId], 1)[0] : undefined;
+    const unused = [...(lastRun?.exercises ?? [])];
     q.insertWorkout(db, { id, templateId: fromWorkoutId ? null : templateId, name: plan.name, date: localDate(now, timeZone), timeZone, startedAt: now.toISOString() });
     plan.exercises.forEach((e) => {
       const workoutExerciseId = createId();
       q.insertWorkoutExercise(db, workoutExerciseId, id, e.exerciseId, e.superset ? (groups[e.superset] ??= createId()) : null);
-      e.sets.forEach((s: PlannedSet) => q.insertSet(db, createId(), workoutExerciseId, { ...copied(s), reps: 0, targetReps: s.reps || s.targetReps || null, completed: false }));
+      const at = unused.findIndex((x) => x.exerciseId === e.exerciseId);
+      const last = at < 0 ? [] : unused.splice(at, 1)[0].sets;
+      e.sets.forEach((s: PlannedSet, i: number) => {
+        const p = last[i];
+        // A blank set left undone last time carries nothing over.
+        const set = p && (p.completed || p.weight) ? { ...s, weight: p.weight, unit: p.unit, reps: p.reps || p.targetReps || s.reps } : s;
+        q.insertSet(db, createId(), workoutExerciseId, { ...copied(set), reps: 0, targetReps: set.reps || set.targetReps || null, completed: false });
+      });
     });
     return id;
   });
