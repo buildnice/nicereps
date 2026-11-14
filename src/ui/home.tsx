@@ -162,7 +162,7 @@ export function Home({ onStart, onResume, onEdit, active }: { onStart: Start; on
           <View style={[sheet.sheet, { backgroundColor: c.raised, borderColor: c.line, paddingBottom: insets.bottom + space.s }]}>
             <View style={[sheet.grabber, { backgroundColor: c.faint }]} />
             <Txt variant="label" tone="muted" numberOfLines={1}>{templates.find((t) => t.id === pick.templateId)?.name}</Txt>
-            <Row title="Use last session's weights and reps" meta="From the last time you did each exercise" onPress={() => startWith('last')} />
+            <Row title="Use last session's weights and reps" meta="From the last time you did this workout" onPress={() => startWith('last')} />
             <Row title="Use template defaults" meta="The numbers saved in the template" onPress={() => startWith('template')} />
           </View>
         )}
