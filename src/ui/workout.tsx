@@ -210,7 +210,13 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   // Animate only bottom: a layout transition on the dock froze it on a stale frame when its timer card exited or the app paused.
   const dockBottom = edit ? sheetHeight + space.s : insets.bottom + space.m;
   const dockMs = edit ? OPEN_MS : CLOSE_MS;
-  const dockStyle = useAnimatedStyle(() => ({ bottom: withTiming(dockBottom, { duration: dockMs }) }), [dockBottom, dockMs]);
+  // Android drops a dock move made in the background (the keypad closes on leaving the app), so rerun it on return.
+  const [resumes, setResumes] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && setResumes((n) => n + 1));
+    return () => sub.remove();
+  }, []);
+  const dockStyle = useAnimatedStyle(() => ({ bottom: withTiming(dockBottom, { duration: dockMs }) }), [dockBottom, dockMs, resumes]);
 
   useEffect(() => {
     if (hidden) return;
