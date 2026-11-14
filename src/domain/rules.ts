@@ -13,6 +13,10 @@ export const shownFields = (set: Visibility): OptionalField[] => {
   return set.options ?? (set.targetRpe != null || set.rpe != null || set.rest != null || !!set.comment) ? [...optionalFields] : [];
 };
 
+// Fields with a recorded value; plates is derived from the weight, so never recorded.
+export const recordedFields = (set: Visibility) =>
+  shownFields(set).filter((f): f is Exclude<OptionalField, 'plates'> => (f === 'comment' ? !!set.comment : f !== 'plates' && set[f] != null));
+
 export const homeLayout = (order = '', hidden = '') => {
   const stored = order.split(',').filter((s): s is HomeSection => (homeSections as readonly string[]).includes(s));
   return [...new Set([...stored, ...homeSections])].map((id) => ({ id, shown: !hidden.split(',').includes(id) }));

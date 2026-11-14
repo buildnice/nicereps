@@ -8,7 +8,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { FadeIn, useAnimatedReaction, useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { convert, type OptionalField, shownFields } from '@/domain/rules';
+import { convert, recordedFields } from '@/domain/rules';
 import * as ops from '@/domain/workouts';
 import { shareImage } from '@/platform/data';
 import { db } from '@/platform/db';
@@ -313,12 +313,7 @@ function Tile({ label, value, unit, inverted, spoken = value }: { label: string;
   );
 }
 
-// plates is derived from the weight, not recorded.
-const recorded = (s: Exercise['sets'][number]): [OptionalField, string][] =>
-  shownFields(s).flatMap((f): [OptionalField, string][] => {
-    const v = f === 'plates' ? '' : f === 'comment' ? (s.comment ?? '') : fieldText(f, s[f]);
-    return v ? [[f, v]] : [];
-  });
+const recorded = (s: Exercise['sets'][number]) => recordedFields(s).map((f) => [f, f === 'comment' ? s.comment! : fieldText(f, s[f])] as const);
 
 function ExerciseCard({ exercise: e }: { exercise: Exercise }) {
   const c = useColors();

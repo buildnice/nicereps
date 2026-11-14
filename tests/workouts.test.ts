@@ -6,7 +6,7 @@ import { seed } from '../cli/fixtures.ts';
 import { bodyweight } from '../assets/catalog/bodyweight.ts';
 import { catalog } from '../assets/catalog/exercises.ts';
 import { addMeasurement, bodyWeight, logBodyWeight } from '../src/domain/measurements.ts';
-import { advance, e1rm, localDate, repMaxes, shownFields, unusual, wholeIn } from '../src/domain/rules.ts';
+import { advance, e1rm, localDate, recordedFields, repMaxes, shownFields, unusual, wholeIn } from '../src/domain/rules.ts';
 import {
   addExercise,
   addSet,
@@ -391,6 +391,14 @@ test('a set shows its stored fields, else every field when its old options were 
   assert.deepEqual(shownFields({ rest: 90 }), ['targetRpe', 'rpe', 'rest', 'comment', 'plates']);
   assert.deepEqual(shownFields({ rest: 90, options: false }), []);
   assert.deepEqual(shownFields({}), []);
+});
+
+test('recorded fields skip plates, empty comments and unset values', () => {
+  assert.deepEqual(recordedFields({ rpe: 8, rest: 150, comment: '' }), ['rpe', 'rest']);
+  assert.deepEqual(recordedFields({ comment: 'slow descent', targetRpe: null }), ['comment']);
+  assert.deepEqual(recordedFields({ fields: 'rpe,plates', rpe: 9, rest: 90 }), ['rpe']);
+  assert.deepEqual(recordedFields({ rpe: 0 }), ['rpe']);
+  assert.deepEqual(recordedFields({}), []);
 });
 
 test('completing a set advances to the superset partner, then the next unfinished exercise', () => {
