@@ -87,6 +87,16 @@ function Clock({ since, sets }: { since: number; sets: string }) {
   );
 }
 
+// Counts returns to the app, for rerunning visuals Android dropped while backgrounded.
+function useResumes() {
+  const [resumes, setResumes] = useState(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && setResumes((n) => n + 1));
+    return () => sub.remove();
+  }, []);
+  return resumes;
+}
+
 function TimerCard({ timer, onChange }: { timer: Timer; onChange: (timer: Timer | null) => void }) {
   const c = useColors();
   const { fontScale } = useWindowDimensions();
@@ -211,11 +221,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const dockBottom = edit ? sheetHeight + space.s : insets.bottom + space.m;
   const dockMs = edit ? OPEN_MS : CLOSE_MS;
   // Android drops a dock move made in the background (the keypad closes on leaving the app), so rerun it on return.
-  const [resumes, setResumes] = useState(0);
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => state === 'active' && setResumes((n) => n + 1));
-    return () => sub.remove();
-  }, []);
+  const resumes = useResumes();
   const dockStyle = useAnimatedStyle(() => ({ bottom: withTiming(dockBottom, { duration: dockMs }) }), [dockBottom, dockMs, resumes]);
 
   useEffect(() => {
@@ -1051,11 +1057,7 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
   }, [warned, reduce, glow]);
   const fill = useSharedValue(set.completed ? 1 : 0);
   useEffect(() => fill.set(reduce ? +set.completed : withTiming(+set.completed, { duration: 240 })), [set.completed, reduce, fill]);
-  const [resumes, setResumes] = useState(0);
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => state === 'active' && setResumes((n) => n + 1));
-    return () => sub.remove();
-  }, []);
+  const resumes = useResumes();
   const sweep = useAnimatedStyle(() => ({ transform: [{ scaleX: fill.get() }] }));
   const ink = set.completed ? c.bg : undefined;
   const soft = `${c.bg}99`;
