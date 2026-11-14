@@ -2,10 +2,11 @@ import { Canvas, Circle, Path, Skia } from '@shopify/react-native-skia';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CaretDownIcon } from 'phosphor-react-native/src/icons/CaretDown';
 import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
-import { type RefObject, useRef, useState } from 'react';
+import { type RefObject, useMemo, useRef, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, useAnimatedReaction, useDerivedValue, useSharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { convert, type OptionalField, shownFields } from '@/domain/rules';
 import * as ops from '@/domain/workouts';
@@ -324,6 +325,7 @@ function ExerciseCard({ exercise: e }: { exercise: Exercise }) {
   const { units } = usePrototype();
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState<number | null>(null);
+  const values = useMemo(() => e.trend.map((p) => p.value), [e.trend]);
   const done = e.sets.filter((s) => s.completed);
   const working = done.filter((s) => s.type !== 'warm-up').length;
   const t = e.top && inUnit(e.top, units);
@@ -363,7 +365,7 @@ function ExerciseCard({ exercise: e }: { exercise: Exercise }) {
               )}
               <Txt variant="meta" tone="muted">{at !== null ? point(at) : e.mode === 'reps' ? `top set${estimate ? ` · e1RM ${estimate}` : ''}` : 'longest hold'}</Txt>
             </View>
-            {e.trend.length > 1 && <Sparkline values={e.trend.map((p) => p.value)} label={e.mode === 'reps' ? 'e1RM' : 'longest hold'} at={at} onAt={setAt} describe={point} />}
+            {e.trend.length > 1 && <Sparkline values={values} label={e.mode === 'reps' ? 'e1RM' : 'longest hold'} at={at} onAt={setAt} describe={point} />}
           </View>
         )}
         <View style={[styles.chips, !t && { marginTop: 0 }]}>
@@ -402,22 +404,33 @@ function ExerciseCard({ exercise: e }: { exercise: Exercise }) {
 
 function Sparkline({ values, label, at, onAt, describe }: { values: number[]; label: string; at: number | null; onAt: (i: number | null) => void; describe: (i: number) => string }) {
   const c = useColors();
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const points = values.map((v, i) => ({ x: dot + (i / (values.length - 1)) * (sparkWidth - 2 * dot), y: dot + (max > min ? (max - v) / (max - min) : 0.5) * (sparkHeight - 2 * dot) }));
-  const line = Skia.Path.Make();
-  points.forEach(({ x, y }, i) => (i ? line.lineTo(x, y) : line.moveTo(x, y)));
-  const shown = points[at ?? points.length - 1];
-  const nearest = (x: number) => Math.min(values.length - 1, Math.max(0, Math.round(((x - dot) / (sparkWidth - 2 * dot)) * (values.length - 1))));
-  // Horizontal only, so a vertical drag starting here still scrolls the page.
+  const last = values.length - 1;
+  const { points, line } = useMemo(() => {
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const points = values.map((v, i) => ({ x: dot + (i / last) * (sparkWidth - 2 * dot), y: dot + (max > min ? (max - v) / (max - min) : 0.5) * (sparkHeight - 2 * dot) }));
+    const line = Skia.Path.Make();
+    points.forEach(({ x, y }, i) => (i ? line.lineTo(x, y) : line.moveTo(x, y)));
+    return { points, line };
+  }, [values, last]);
+  // Scrubbed index on the UI thread, -1 when idle; JS hears only index changes.
+  const touched = useSharedValue(-1);
+  const cx = useDerivedValue(() => points[touched.get() < 0 ? last : touched.get()].x);
+  const cy = useDerivedValue(() => points[touched.get() < 0 ? last : touched.get()].y);
+  useAnimatedReaction(() => touched.get(), (i, prev) => {
+    if (i !== prev) scheduleOnRN(onAt, i < 0 ? null : i);
+  });
+  const nearest = (x: number) => {
+    'worklet';
+    return Math.min(last, Math.max(0, Math.round(((x - dot) / (sparkWidth - 2 * dot)) * last)));
+  };
+  // Horizontal only, so a vertical drag starting here still scrolls the page; onBegin also picks a point on a plain touch.
   const scrub = Gesture.Pan()
-    .runOnJS(true)
-    .activeOffsetX([-8, 8])
-    .failOffsetY([-8, 8])
-    .onBegin((g) => onAt(nearest(g.x)))
-    .onUpdate((g) => onAt(nearest(g.x)))
-    .onFinalize(() => onAt(null));
-  const step = (by: number) => onAt(Math.min(values.length - 1, Math.max(0, (at ?? values.length - 1) + by)));
+    .activeOffsetX([-10, 10])
+    .failOffsetY([-10, 10])
+    .onBegin((g) => touched.set(nearest(g.x)))
+    .onUpdate((g) => touched.set(nearest(g.x)))
+    .onFinalize(() => touched.set(-1));
   return (
     <GestureDetector gesture={scrub}>
       <View
@@ -425,14 +438,14 @@ function Sparkline({ values, label, at, onAt, describe }: { values: number[]; la
         onStartShouldSetResponder={() => true}
         accessible
         accessibilityRole="adjustable"
-        accessibilityLabel={`${label} trend over ${values.length} sessions, ${values.at(-1)! > values[0] ? 'up' : values.at(-1)! < values[0] ? 'down' : 'level'} since the first`}
-        accessibilityValue={{ text: describe(at ?? values.length - 1) }}
+        accessibilityLabel={`${label} trend over ${values.length} sessions, ${values[last] > values[0] ? 'up' : values[last] < values[0] ? 'down' : 'level'} since the first`}
+        accessibilityValue={{ text: describe(at ?? last) }}
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-        onAccessibilityAction={(a) => step(a.nativeEvent.actionName === 'increment' ? 1 : -1)}
+        onAccessibilityAction={(a) => touched.set(Math.min(last, Math.max(0, (at ?? last) + (a.nativeEvent.actionName === 'increment' ? 1 : -1))))}
       >
         <Canvas style={{ width: sparkWidth, height: sparkHeight }}>
           <Path path={line} style="stroke" strokeWidth={4} strokeJoin="round" strokeCap="round" color={c.heat[2]} />
-          <Circle cx={shown.x} cy={shown.y} r={dot} color={c.text} />
+          <Circle cx={cx} cy={cy} r={dot} color={c.text} />
         </Canvas>
       </View>
     </GestureDetector>
