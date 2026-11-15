@@ -67,10 +67,11 @@ export function Strip({ workout, onPress }: { workout: Unfinished; onPress?: () 
       onPress={onPress ?? (() => router.dismissTo({ pathname: '/', params: { open: workout.id } }))}
       style={[styles.strip, { backgroundColor: c.text }]}
     >
+      <View style={styles.stripSide} />
       <View style={[styles.live, { backgroundColor: c.bg }]} />
       <Txt variant="label" style={{ color: c.bg, flexShrink: 1 }}>{workout.name}</Txt>
       <Digits text={elapsed} variant="meta" color={c.bg} accessible={false} style={{ opacity: 0.6 }} />
-      <View style={styles.stripEnd}>
+      <View style={[styles.stripSide, styles.stripEnd]}>
         {rest && <Txt variant="caps" style={{ color: c.bg, opacity: 0.6 }}>{rest.label}</Txt>}
         {rest && <Digits text={rest.left} variant="label" color={c.bg} accessible={false} down />}
         <Icon of={CaretRightIcon} tone="bg" style={{ opacity: 0.6 }} />
@@ -507,8 +508,10 @@ const styles = StyleSheet.create({
   breakdown: { paddingLeft: space.l, paddingBottom: space.s },
   breakdownRow: { flexDirection: 'row', gap: space.s, paddingVertical: space.xs },
   track: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
-  strip: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.s, paddingHorizontal: space.xl, paddingVertical: space.xs },
+  strip: { flexDirection: 'row', alignItems: 'center', columnGap: space.s, paddingHorizontal: space.xl, paddingVertical: space.xs },
+  // Equal-growing sides centre the name; the end side keeps its content width so rest/caret never overlap it.
+  stripSide: { flexGrow: 1, flexBasis: 0 },
   live: { width: 8, height: 8, borderRadius: radius.pill },
-  stripEnd: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginLeft: 'auto' },
+  stripEnd: { flexBasis: 'auto', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: space.s },
   ghost: { alignSelf: 'flex-start', marginTop: space.m, paddingHorizontal: space.l, borderWidth: 1, borderRadius: radius.pill },
 });
