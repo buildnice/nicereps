@@ -1,4 +1,5 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -11,7 +12,7 @@ import { db } from '@/platform/db';
 import { dayLabel, parseDate, Row, Section } from './home';
 import { Page, Trend } from './measurements';
 import { today } from './plan';
-import { clock, describeSet, inUnit, radius, space, Tap, Txt, useColors, usePrototype, type Units } from './theme';
+import { clock, describeSet, Icon, inUnit, radius, space, Tap, Txt, useColors, usePrototype, type Units } from './theme';
 import { Chip, ExerciseNote, setLabel } from './workout';
 
 type Range = keyof typeof ops.volumeRanges;
@@ -149,10 +150,17 @@ function SessionCard({ session: x, mode, current, from }: { session: Session; mo
   const done = x.sets.filter((s) => s.completed);
   const working = done.filter(isWorkingSet);
   const reps = working.reduce((n, s) => n + s.reps, 0);
-  const average = reps && convert(working.reduce((n, s) => n + kg(s) * s.reps, 0) / reps, 'kg', units.weight);
+  const title = `${dated(x.date)}${current ? ' · this workout' : ''}`;
+  const average = reps && +convert(working.reduce((n, s) => n + kg(s) * s.reps, 0) / reps, 'kg', units.weight).toFixed(1);
   return (
     <View style={[styles.card, { backgroundColor: c.surface }]}>
-      <Row title={`${dated(x.date)}${current ? ' · this workout' : ''}`} meta={x.name} onPress={() => router.push({ pathname: '/workout/[id]', params: { id: x.workoutId, from } })} />
+      <Tap accessibilityRole="button" accessibilityLabel={`${title}, ${x.name}`} onPress={() => router.push({ pathname: '/workout/[id]', params: { id: x.workoutId, from } })} style={styles.head}>
+        <View style={{ flex: 1 }}>
+          <Txt>{title}</Txt>
+          <Txt variant="meta" tone="muted">{x.name}</Txt>
+        </View>
+        <Icon of={CaretRightIcon} tone="faint" />
+      </Tap>
       {done.map((s, i) => {
         const set = mode === 'reps' ? `${inUnit(s, units).weight} ${units.weight} × ${s.reps}` : describeSet(s, mode, units);
         const label = setLabel(done, i);
@@ -268,6 +276,7 @@ export function LiftDetail() {
 
 const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s },
+  head: { flexDirection: 'row', alignItems: 'center', paddingBottom: space.s },
   card: { borderRadius: radius.l, padding: 18, marginTop: space.m },
   set: { paddingVertical: space.s, borderTopWidth: StyleSheet.hairlineWidth, gap: space.xs },
   more: { alignItems: 'center', justifyContent: 'center', minHeight: 44, borderWidth: 1, borderRadius: radius.pill, marginTop: space.m },
