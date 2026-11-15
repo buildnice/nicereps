@@ -68,8 +68,7 @@ export function Strip({ workout, onPress }: { workout: Unfinished; onPress?: () 
       style={[styles.strip, { backgroundColor: c.text }]}
     >
       <View style={styles.stripSide} />
-      <View style={[styles.live, { backgroundColor: c.bg }]} />
-      <Txt variant="label" style={{ color: c.bg, flexShrink: 1 }}>{workout.name}</Txt>
+      <Txt variant="label" style={{ color: c.bg, flexShrink: 1 }}>Resume workout</Txt>
       <Digits text={elapsed} variant="meta" color={c.bg} accessible={false} style={{ opacity: 0.6 }} />
       <View style={[styles.stripSide, styles.stripEnd]}>
         {rest && <Txt variant="caps" style={{ color: c.bg, opacity: 0.6 }}>{rest.label}</Txt>}
@@ -511,7 +510,6 @@ const styles = StyleSheet.create({
   strip: { flexDirection: 'row', alignItems: 'center', columnGap: space.s, paddingHorizontal: space.xl, paddingVertical: space.xs },
   // Equal-growing sides centre the name; the end side keeps its content width so rest/caret never overlap it.
   stripSide: { flexGrow: 1, flexBasis: 0 },
-  live: { width: 8, height: 8, borderRadius: radius.pill },
   stripEnd: { flexBasis: 'auto', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: space.s },
   ghost: { alignSelf: 'flex-start', marginTop: space.m, paddingHorizontal: space.l, borderWidth: 1, borderRadius: radius.pill },
 });
