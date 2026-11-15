@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import * as ops from '@/domain/workouts';
 import { db } from '@/platform/db';
-import { Home } from '@/ui/home';
+import { Home, Strip } from '@/ui/home';
 import { RevealScroll, SheetSlot } from '@/ui/sheet';
 import { Workout } from '@/ui/workout';
 
@@ -40,11 +40,11 @@ export default function Index() {
       )}
       {(!workout || minimised) && (
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+        {active && <Strip workout={active} onPress={() => setMinimised(false)} />}
         <SheetSlot>
         <RevealScroll>
           <Home
-            active={active && { name: active.name, startedAt: Date.parse(active.startedAt) }}
-            onResume={() => setMinimised(false)}
+            active={!!active}
             onEdit={(id) => {
               setWorkout(id);
               setMinimised(false);

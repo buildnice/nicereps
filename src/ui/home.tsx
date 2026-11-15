@@ -27,7 +27,6 @@ import { clock, Digits, Icon, radius, space, Tap, touch, Txt, useColors, useProt
 
 export const dayLabel = (date: Date) => date.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' });
 
-type Active = { name: string; startedAt: number };
 type Start = (from: { templateId?: string; fromWorkoutId?: string; numbers?: 'last' | 'template' }) => void;
 type Edit = (workoutId: string) => void;
 type Finished = ReturnType<typeof ops.history>[number];
@@ -46,10 +45,6 @@ export function useNow() {
   return now;
 }
 
-function Elapsed({ since }: { since: number }) {
-  return <Digits text={clock((useNow() - since) / 1000)} variant="heading" color={useColors().onAccent} />;
-}
-
 type Unfinished = ReturnType<typeof ops.unfinishedWorkouts>[number];
 
 export function ActiveStrip() {
@@ -58,7 +53,8 @@ export function ActiveStrip() {
   return workout ? <Strip workout={workout} /> : null;
 }
 
-function Strip({ workout }: { workout: Unfinished }) {
+// Home passes onPress: it is already on '/', where dismissTo has nothing to dismiss.
+export function Strip({ workout, onPress }: { workout: Unfinished; onPress?: () => void }) {
   const c = useColors();
   const now = useNow();
   const timer: Timer | null = JSON.parse(readSetting('timer') || 'null');
@@ -68,13 +64,13 @@ function Strip({ workout }: { workout: Unfinished }) {
   return (
     <Tap
       accessibilityLabel={`Resume ${workout.name}, ${elapsed}${rest ? `, ${rest.label} ${rest.left} left` : ''}`}
-      onPress={() => router.dismissTo({ pathname: '/', params: { open: workout.id } })}
+      onPress={onPress ?? (() => router.dismissTo({ pathname: '/', params: { open: workout.id } }))}
       style={[styles.strip, { backgroundColor: c.text }]}
     >
-      <View style={[styles.live, { backgroundColor: c.bg }]} />
-      <Txt variant="label" style={{ color: c.bg, flexShrink: 1 }}>{workout.name}</Txt>
+      <View style={styles.stripSide} />
+      <Txt variant="label" style={{ color: c.bg, flexShrink: 1 }}>Resume workout</Txt>
       <Digits text={elapsed} variant="meta" color={c.bg} accessible={false} style={{ opacity: 0.6 }} />
-      <View style={styles.stripEnd}>
+      <View style={[styles.stripSide, styles.stripEnd]}>
         {rest && <Txt variant="caps" style={{ color: c.bg, opacity: 0.6 }}>{rest.label}</Txt>}
         {rest && <Digits text={rest.left} variant="label" color={c.bg} accessible={false} down />}
         <Icon of={CaretRightIcon} tone="bg" style={{ opacity: 0.6 }} />
@@ -83,7 +79,7 @@ function Strip({ workout }: { workout: Unfinished }) {
   );
 }
 
-export function Home({ onStart, onResume, onEdit, active }: { onStart: Start; onResume: () => void; onEdit: Edit; active: Active | null }) {
+export function Home({ onStart, onEdit, active }: { onStart: Start; onEdit: Edit; active: boolean }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const [choosing, setChoosing] = useState(false);
@@ -126,12 +122,7 @@ export function Home({ onStart, onResume, onEdit, active }: { onStart: Start; on
           <Icon of={DotsThreeIcon} tone="muted" />
         </Tap>
       </View>
-      {active ? (
-        <Tap onPress={onResume} style={[styles.start, { backgroundColor: c.accent }]}>
-          <Txt variant="heading" tone="onAccent" style={{ flex: 1 }}>Resume {active.name}</Txt>
-          <Elapsed since={active.startedAt} />
-        </Tap>
-      ) : (
+      {!active && (
         <Tap
           accessibilityLabel="Start workout"
           accessibilityState={{ expanded: choosing }}
@@ -516,8 +507,9 @@ const styles = StyleSheet.create({
   breakdown: { paddingLeft: space.l, paddingBottom: space.s },
   breakdownRow: { flexDirection: 'row', gap: space.s, paddingVertical: space.xs },
   track: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
-  strip: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: space.s, paddingHorizontal: space.xl, paddingVertical: space.xs },
-  live: { width: 8, height: 8, borderRadius: radius.pill },
-  stripEnd: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginLeft: 'auto' },
+  strip: { flexDirection: 'row', alignItems: 'center', columnGap: space.s, paddingHorizontal: space.xl, paddingVertical: space.xs },
+  // Equal-growing sides centre the name; the end side keeps its content width so rest/caret never overlap it.
+  stripSide: { flexGrow: 1, flexBasis: 0 },
+  stripEnd: { flexBasis: 'auto', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: space.s },
   ghost: { alignSelf: 'flex-start', marginTop: space.m, paddingHorizontal: space.l, borderWidth: 1, borderRadius: radius.pill },
 });
