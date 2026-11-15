@@ -20,7 +20,7 @@ import { parse, type Draft } from './draft';
 import { Keypad } from './keypad';
 import { today } from './plan';
 import { BottomSheet, Reveal, RevealScroll } from './sheet';
-import { Icon, radius, space, Tap, touch, Txt, type, useColors, usePrototype } from './theme';
+import { Icon, noteInput, radius, space, Tap, touch, Txt, type, useColors, usePrototype } from './theme';
 import { Chip } from './workout';
 
 type Series = Pick<ReturnType<typeof measures.listSeries>[number], 'name' | 'preset' | 'kind' | 'method' | 'entries'>;
@@ -286,7 +286,7 @@ function CustomSeries({ draft, onChange }: { draft: Custom; onChange: (draft: Cu
         placeholderTextColor={c.faint}
         multiline
         accessibilityLabel="Method note"
-        style={[styles.text, { backgroundColor: c.raised, color: c.text }]}
+        style={[noteInput, { marginTop: space.s, color: c.text, borderColor: c.line }]}
       />
     </>
   );

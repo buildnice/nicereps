@@ -15,7 +15,7 @@ import { db } from '@/platform/db';
 
 import { MuscleBreakdown, parseDate, Section } from './home';
 import { Page } from './measurements';
-import { Choice, clock, describeSet, Icon, inUnit, radius, space, Tap, Txt, type, useColors, usePrototype } from './theme';
+import { Choice, clock, describeSet, Icon, inUnit, noteInput, radius, space, Tap, Txt, type, useColors, usePrototype } from './theme';
 import { fieldNames, fieldText } from './workout';
 
 type Summary = ReturnType<typeof ops.workoutSummary>;
@@ -66,7 +66,7 @@ export function CheckInPage() {
         placeholderTextColor={c.faint}
         accessibilityLabel="Workout note"
         multiline
-        style={[styles.note, { backgroundColor: c.surface, color: c.text }]}
+        style={[noteInput, { marginTop: space.xl, color: c.text, borderColor: c.line }]}
       />
       <Tap onPress={recap} style={[styles.action, { marginTop: space.xl, backgroundColor: c.accent }]}>
         <Txt variant="label" tone="onAccent">Continue</Txt>
@@ -471,7 +471,6 @@ const styles = StyleSheet.create({
   action: { minHeight: 56, borderRadius: radius.m, alignItems: 'center' },
   entry: { flexDirection: 'row', gap: space.s, marginTop: space.s },
   scale: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.xs },
-  note: { borderRadius: radius.s, paddingHorizontal: space.m, minHeight: 44, ...type.input, marginTop: space.xl },
   input: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', borderRadius: radius.s, paddingHorizontal: space.m, minHeight: 48 },
   toggle: { flex: 1, alignItems: 'center', borderRadius: radius.s },
   save: { width: 72, borderRadius: radius.s, alignItems: 'center' },
