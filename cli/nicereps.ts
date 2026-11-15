@@ -249,7 +249,7 @@ const showWorkout = (w: ReturnType<typeof ops.getWorkout>, suggest?: (exercise: 
     console.log(`  ${e.id}  ${e.name}  ${e.mode}  [${muscles}]${e.superset ? `  superset ${e.superset.slice(0, 6)}` : ''}${e.note ? `  "${e.note}"` : ''}`);
     if (e.exerciseNote && !w.finishedAt) console.log(`    note: ${e.exerciseNote}`);
     const up = suggest?.(e.name) ?? [];
-    e.sets.forEach((s, i) => console.log(`    ${s.id}  ${s.type.padEnd(7)} ${measure(e.mode, s)}  ${s.completed ? 'done' : '-'}${prs?.has(s.id) ? '  PR' : ''}${extras(s)}${up[i] ? `  try ${up[i].weight} ${up[i].unit}` : ''}`));
+    e.sets.forEach((s, i) => console.log(`    ${s.id}  ${s.type.padEnd(7)} ${measure(e.mode, s)}  ${s.completed ? 'done' : '-'}${prs?.has(s.id) ? '  PR' : ''}${extras(s)}${up[i] ? '  target reps hit - time to increment' : ''}`));
   }
 };
 
