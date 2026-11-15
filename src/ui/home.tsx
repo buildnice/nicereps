@@ -27,7 +27,6 @@ import { clock, Digits, Icon, radius, space, Tap, touch, Txt, useColors, useProt
 
 export const dayLabel = (date: Date) => date.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' });
 
-type Active = { name: string; startedAt: number };
 type Start = (from: { templateId?: string; fromWorkoutId?: string; numbers?: 'last' | 'template' }) => void;
 type Edit = (workoutId: string) => void;
 type Finished = ReturnType<typeof ops.history>[number];
@@ -46,10 +45,6 @@ export function useNow() {
   return now;
 }
 
-function Elapsed({ since }: { since: number }) {
-  return <Digits text={clock((useNow() - since) / 1000)} variant="heading" color={useColors().onAccent} />;
-}
-
 type Unfinished = ReturnType<typeof ops.unfinishedWorkouts>[number];
 
 export function ActiveStrip() {
@@ -58,7 +53,8 @@ export function ActiveStrip() {
   return workout ? <Strip workout={workout} /> : null;
 }
 
-function Strip({ workout }: { workout: Unfinished }) {
+// Home passes onPress: it is already on '/', where dismissTo has nothing to dismiss.
+export function Strip({ workout, onPress }: { workout: Unfinished; onPress?: () => void }) {
   const c = useColors();
   const now = useNow();
   const timer: Timer | null = JSON.parse(readSetting('timer') || 'null');
@@ -68,7 +64,7 @@ function Strip({ workout }: { workout: Unfinished }) {
   return (
     <Tap
       accessibilityLabel={`Resume ${workout.name}, ${elapsed}${rest ? `, ${rest.label} ${rest.left} left` : ''}`}
-      onPress={() => router.dismissTo({ pathname: '/', params: { open: workout.id } })}
+      onPress={onPress ?? (() => router.dismissTo({ pathname: '/', params: { open: workout.id } }))}
       style={[styles.strip, { backgroundColor: c.text }]}
     >
       <View style={[styles.live, { backgroundColor: c.bg }]} />
@@ -83,7 +79,7 @@ function Strip({ workout }: { workout: Unfinished }) {
   );
 }
 
-export function Home({ onStart, onResume, onEdit, active }: { onStart: Start; onResume: () => void; onEdit: Edit; active: Active | null }) {
+export function Home({ onStart, onEdit, active }: { onStart: Start; onEdit: Edit; active: boolean }) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const [choosing, setChoosing] = useState(false);
@@ -126,12 +122,7 @@ export function Home({ onStart, onResume, onEdit, active }: { onStart: Start; on
           <Icon of={DotsThreeIcon} tone="muted" />
         </Tap>
       </View>
-      {active ? (
-        <Tap onPress={onResume} style={[styles.start, { backgroundColor: c.accent }]}>
-          <Txt variant="heading" tone="onAccent" style={{ flex: 1 }}>Resume {active.name}</Txt>
-          <Elapsed since={active.startedAt} />
-        </Tap>
-      ) : (
+      {!active && (
         <Tap
           accessibilityLabel="Start workout"
           accessibilityState={{ expanded: choosing }}
