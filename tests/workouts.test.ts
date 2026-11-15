@@ -142,6 +142,17 @@ test('records use working sets, keep the earliest tie and name their source set'
   assert.equal(e1rm(100, 30), 200);
 });
 
+test('weights by rep count keep the heaviest, earliest on ties, and skip warm-ups', () => {
+  const { db, pushA2 } = setup();
+  const bench = pushA2.exercises[0];
+  correctSet(db, bench.sets[2].id, { weight: 90, reps: 5 });
+  correctSet(db, bench.sets[3].id, { weight: 80, reps: 8 });
+  assert.deepEqual(
+    progress(db, 'Bench Press').weights.map((r) => [r.set.weight, r.set.reps, r.date]),
+    [[90, 5, '2026-10-06'], [82.5, 8, '2026-09-29']],
+  );
+});
+
 test('editing an old workout updates its totals and records', () => {
   const { db, pushA } = setup();
   const bench = pushA.exercises[0];
