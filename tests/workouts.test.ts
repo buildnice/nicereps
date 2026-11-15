@@ -323,27 +323,27 @@ test('PRs list each lift\'s current weight, e1RM and hold record, starred first,
 });
 
 const hints = (db: ReturnType<typeof openDb>, before?: { date: string; startedAt: string }) =>
-  ['Bench Press', 'Overhead Press', 'Cable Fly'].map((name) => [name, suggest(db, name, before).map((s) => s?.weight ?? null)]);
+  ['Bench Press', 'Overhead Press', 'Cable Fly'].map((name) => [name, suggest(db, name, before)]);
 
-test('a session where every working set met its target suggests the next weight up as a hint', () => {
+test('a session where every working set met its target flags its working sets for an increment', () => {
   const { db, pushA2 } = setup();
-  const raised = [['Bench Press', [null, 85, 85, 85]], ['Overhead Press', [52.5, 52.5, 52.5]], ['Cable Fly', [null, null]]];
+  const raised = [['Bench Press', [false, true, true, true]], ['Overhead Press', [true, true, true]], ['Cable Fly', [false, false]]];
   assert.deepEqual(hints(db), raised);
   const repeat = getWorkout(db, startWorkout(db, { fromWorkoutId: pushA2.id }));
   assert.deepEqual(repeat.exercises[0].sets.map((s) => s.weight), [40, 82.5, 82.5, 82.5]);
   assert.deepEqual(hints(db, repeat), raised);
-  assert.deepEqual(suggest(db, 'Pull-up'), [null, null, null]);
+  assert.deepEqual(suggest(db, 'Pull-up'), [false, false, false]);
 });
 
-test('a missed target, a blank target or an incomplete set suggests no increase; lb steps by 5', () => {
+test('a missed target, a blank target or an incomplete set flags no increment', () => {
   const { db, pushA2 } = setup();
   const [bench, press, fly] = pushA2.exercises;
   correctSet(db, bench.sets[3].id, { reps: 7 });
   correctSet(db, press.sets[0].id, { targetReps: null });
-  for (const s of fly.sets) correctSet(db, s.id, { unit: 'lb', reps: s.targetReps!, completed: true });
-  assert.deepEqual(hints(db), [['Bench Press', [null, null, null, null]], ['Overhead Press', [null, null, null]], ['Cable Fly', [20, 15]]]);
+  for (const s of fly.sets) correctSet(db, s.id, { reps: s.targetReps!, completed: true });
+  assert.deepEqual(hints(db), [['Bench Press', [false, false, false, false]], ['Overhead Press', [false, false, false]], ['Cable Fly', [true, true]]]);
   correctSet(db, bench.sets[3].id, { reps: 8, completed: false });
-  assert.deepEqual(hints(db)[0], ['Bench Press', [null, null, null, null]]);
+  assert.deepEqual(hints(db)[0], ['Bench Press', [false, false, false, false]]);
 });
 
 test('a bodyweight lift adds the body weight on the workout date to its e1RM; weight records stay on the added weight', () => {

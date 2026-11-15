@@ -591,7 +591,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                 set={set}
                 pr={prs.has(set.id)}
                 prev={exercise.mode === 'check' || !last?.sets[s]?.completed ? undefined : last.sets[s]}
-                next={up[s] ?? undefined}
+                next={up[s]}
                 mode={exercise.mode}
                 onDelete={() => removeSet(set.id)}
                 onComplete={() => complete(exercise, set)}
@@ -980,7 +980,7 @@ type SetRowProps = {
   set: LoggedSet & { pace: number | null };
   pr: boolean;
   prev?: SetFields;
-  next?: SetFields;
+  next?: boolean;
   mode: Mode;
   defaultRest: number;
   onDelete: () => void;
@@ -1184,8 +1184,8 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
                 </Tap>
               )}
               {prev && (
-                <Tap accessibilityLabel={`Set ${n} previous ${describeSet(prev, mode, units)}${next ? `, try ${inUnit(next, units).weight} ${units.weight}` : ''}, copy`} onPress={() => copy(prev)} hitSlop={8} style={styles.prev}>
-                  <Ink fill={fill} at={0.2} from={c.muted} to={soft} variant="small">Prev {describeSet(prev, mode, units)}{next ? ` · try ${inUnit(next, units).weight}` : ''}</Ink>
+                <Tap accessibilityLabel={`Set ${n} previous ${describeSet(prev, mode, units)}${next ? ', target reps hit - time to increment' : ''}, copy`} onPress={() => copy(prev)} hitSlop={8} style={styles.prev}>
+                  <Ink fill={fill} at={0.2} from={c.muted} to={soft} variant="small">Prev {describeSet(prev, mode, units)}{next ? ' · target reps hit - time to increment' : ''}</Ink>
                 </Tap>
               )}
             </View>
