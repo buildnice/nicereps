@@ -234,16 +234,19 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     return () => sub.remove();
   }, [hidden]);
 
-  useEffect(() => {
-    if (hidden) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (renaming) nameInput.current?.blur();
-      else if (edit) setEdit(null);
-      else close();
-      return true;
-    });
-    return () => sub.remove();
-  }, [hidden, edit, renaming, close]);
+  // Focus-scoped so a page pushed over the workout (the lift page) gets hardware back.
+  useFocusEffect(
+    useCallback(() => {
+      if (hidden) return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (renaming) nameInput.current?.blur();
+        else if (edit) setEdit(null);
+        else close();
+        return true;
+      });
+      return () => sub.remove();
+    }, [hidden, edit, renaming, close]),
+  );
 
   const startTimer = (exercise: string, phases: Timer['phases'], set?: string) => setTimer(() => ({ workout: id, exercise, startedAt: Date.now(), phases, set }));
   // Retime a rest that was running when its set's rest field opened, once typing there ends, so keystrokes in between don't end it.
