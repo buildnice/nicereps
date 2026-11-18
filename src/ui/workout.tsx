@@ -1,7 +1,7 @@
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, type TextProps, BackHandler, Platform, Image, Keyboard, KeyboardAvoidingView, PanResponder, ScrollView, StyleSheet, TextInput, useWindowDimensions, Vibration, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeOut, interpolateColor, Keyframe, LayoutAnimationConfig, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { ArrowDownIcon } from 'phosphor-react-native/src/icons/ArrowDown';
@@ -197,6 +197,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const [swapping, setSwapping] = useState<string | null>(null);
   const [notingAll, setNotingAll] = useState<string | null>(null);
   const [notingThis, setNotingThis] = useState<string | null>(null);
+  const notes = useRef<Record<string, TextInput | null>>({});
   const [options, setOptions] = useState<{ id: string; name: string; guide: boolean; open: boolean } | null>(null);
   const [flagged, setFlagged] = useState<string[]>([]);
   const placed = useRef<{ y: number; height: number } | null>(null);
@@ -536,12 +537,12 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                   </Tap>
                 )}
                 {(!!exercise.exerciseNote || notingAll === exercise.id) && (
-                  <ExerciseNote key={`${exercise.exerciseId}:${visit}`} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} autoFocus={notingAll === exercise.id} onFocus={() => { setEdit(null); setNotingAll(exercise.id); }} save={run} />
+                  <ExerciseNote key={`${exercise.exerciseId}:${visit}`} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} ref={(node) => { notes.current[`Note for every workout:${exercise.id}`] = node; }} onFocus={() => { setEdit(null); setNotingAll(exercise.id); }} save={run} />
                 )}
                 {(!!exercise.note || notingThis === exercise.id) && <TextInput
                   defaultValue={exercise.note ?? ''}
                   onChangeText={(t) => run(() => ops.noteExercise(db, exercise.id, t))}
-                  autoFocus={notingThis === exercise.id}
+                  ref={(node) => { notes.current[`Note for this workout:${exercise.id}`] = node; }}
                   onFocus={() => { setEdit(null); setNotingThis(exercise.id); }}
                   placeholder="Note for this workout"
                   placeholderTextColor={c.faint}
@@ -716,11 +717,15 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                   accessibilityLabel={label === 'Copy as custom' ? `Copy ${options.name} as a custom exercise` : label === 'Swap with' ? `Swap ${options.name} with another exercise` : label}
                   accessibilityState={{ expanded: value === options.id }}
                   onPress={() => {
-                    const toggle = () => set(value === options.id ? null : options.id);
-                    // Android raises no keyboard for autoFocus while the modal sheet still has window focus.
-                    if (label.startsWith('Note')) setTimeout(toggle, CLOSE_MS * 2);
-                    else toggle();
                     setOptions({ ...options, open: false });
+                    if (!label.startsWith('Note')) return set(value === options.id ? null : options.id);
+                    set(options.id);
+                    // Waits out the modal sheet (Android raises no keyboard while it has window focus); blur first so an already-focused note re-opens the keyboard.
+                    setTimeout(() => {
+                      const note = notes.current[`${label}:${options.id}`];
+                      note?.blur();
+                      note?.focus();
+                    }, CLOSE_MS * 2);
                   }}
                   style={[styles.option, { backgroundColor: c.surface }]}
                 >
@@ -892,13 +897,13 @@ export function NewExercise({ from, onCreate, onFocus }: { from?: string; onCrea
   );
 }
 
-export function ExerciseNote({ exerciseId, name, note, autoFocus, onFocus, save = (op) => op() }: { exerciseId: string; name: string; note: string | null; autoFocus?: boolean; onFocus?: () => void; save?: (op: () => unknown) => void }) {
+export function ExerciseNote({ exerciseId, name, note, ref, onFocus, save = (op) => op() }: { exerciseId: string; name: string; note: string | null; ref?: Ref<TextInput>; onFocus?: () => void; save?: (op: () => unknown) => void }) {
   const c = useColors();
   return (
     <TextInput
       defaultValue={note ?? ''}
       onChangeText={(t) => save(() => ops.setExerciseNote(db, exerciseId, t))}
-      autoFocus={autoFocus}
+      ref={ref}
       onFocus={onFocus}
       placeholder="Note for every workout"
       placeholderTextColor={c.faint}
