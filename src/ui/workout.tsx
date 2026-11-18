@@ -177,6 +177,8 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     setOpen(exercise);
     setEdit(null);
     setMenu(null);
+    setNotingAll(null);
+    setNotingThis(null);
   };
   const reduce = useReducedMotion();
   const startedAt = Date.parse(workout.startedAt);
@@ -714,7 +716,10 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                   accessibilityLabel={label === 'Copy as custom' ? `Copy ${options.name} as a custom exercise` : label === 'Swap with' ? `Swap ${options.name} with another exercise` : label}
                   accessibilityState={{ expanded: value === options.id }}
                   onPress={() => {
-                    set(value === options.id ? null : options.id);
+                    const toggle = () => set(value === options.id ? null : options.id);
+                    // Android raises no keyboard for autoFocus while the modal sheet still has window focus.
+                    if (label.startsWith('Note')) setTimeout(toggle, CLOSE_MS * 2);
+                    else toggle();
                     setOptions({ ...options, open: false });
                   }}
                   style={[styles.option, { backgroundColor: c.surface }]}
