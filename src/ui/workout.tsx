@@ -97,7 +97,7 @@ function useResumes() {
   return resumes;
 }
 
-function TimerCard({ timer, onChange }: { timer: Timer; onChange: (timer: Timer | null) => void }) {
+function TimerCard({ timer, onChange, onEdit }: { timer: Timer; onChange: (timer: Timer | null) => void; onEdit?: (seconds: number) => void }) {
   const c = useColors();
   const { fontScale } = useWindowDimensions();
   const elapsed = Math.max(0, useNow() - timer.startedAt) / 1000;
@@ -127,7 +127,13 @@ function TimerCard({ timer, onChange }: { timer: Timer; onChange: (timer: Timer 
     >
       <View>
         <Txt variant="caps" accessibilityLiveRegion="polite" style={{ color: c.bg, opacity: 0.6 }}>{phase.remaining > 0 ? phase.label : `${phase.label} done`}</Txt>
-        <Digits text={clock(phase.remaining)} variant="display" color={c.bg} down />
+        {onEdit ? (
+          <Tap accessibilityLabel={`${clock(phase.remaining)} left. Edit ${phase.label.toLowerCase()} length`} onPress={() => onEdit(phase.seconds)}>
+            <Digits text={clock(phase.remaining)} variant="display" color={c.bg} down accessible={false} />
+          </Tap>
+        ) : (
+          <Digits text={clock(phase.remaining)} variant="display" color={c.bg} down />
+        )}
       </View>
       <Txt variant="small" style={{ flexGrow: 1, flexBasis: 80, color: c.bg, opacity: 0.6 }}>
         of {clock(phase.seconds)}{timer.phases.length > 1 ? ` · ${phase.index + 1}/${timer.phases.length}` : ''}{'\n'}{timer.exercise}
@@ -259,7 +265,8 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     if (!was?.live || !was.typed || timer?.set !== was.set) return;
     const exercise = exercises.find((x) => x.sets.some((s) => s.id === was.set));
     const set = exercise?.sets.find((s) => s.id === was.set);
-    if (exercise && set) setTimer({ ...timer, phases: [{ ...timer.phases[0], seconds: set.rest ?? exercise.rest }] });
+    // Shortened below the time already rested: end now, so the usual alert still fires.
+    if (exercise && set) setTimer({ ...timer, phases: [{ ...timer.phases[0], seconds: Math.max(set.rest ?? exercise.rest, Math.ceil((Date.now() - timer.startedAt) / 1000)) }] });
   }, [edit, exercises, timer]);
   // Leaving the app mid-typing closes the keypad so the background countdown and end alert get the new length.
   useEffect(() => {
@@ -315,6 +322,12 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     clearTimeout(advancing.current);
     if (field === 'bodyWeight') return setEdit({ set: set.id, title: 'Body weight', field, text: String(bodyWeight ?? ''), fresh: true });
     setEdit({ set: set.id, title, field, text: timeFields.includes(field) ? timeDigits(set[field]) : String(set[field] ?? ''), fresh: true });
+  };
+  // Opens the running rest's set field prefilled with the timer's total, which +30s may have moved off the saved rest; the retime above applies it.
+  const editRest = (seconds: number) => {
+    const exercise = exercises.find((x) => x.sets.some((s) => s.id === timer?.set));
+    const set = exercise?.sets.find((s) => s.id === timer?.set);
+    if (exercise && set) startEdit(exercise.name, { ...set, rest: seconds }, 'rest');
   };
   const reveal = (bottom: number) => {
     const top = windowHeight - sheetHeight - space.s - dockHeight;
@@ -676,7 +689,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
         onLayout={(event) => setDockHeight(event.nativeEvent.layout.height)}
         style={[styles.dock, dockStyle]}
       >
-        {timer && <TimerCard timer={timer} onChange={setTimer} />}
+        {timer && <TimerCard timer={timer} onChange={setTimer} onEdit={timer.set ? editRest : undefined} />}
         {cta === 'show' && !finished && (
           <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(160)}>
             <Tap onPress={finish} style={[styles.done, { backgroundColor: c.accent }]}>
