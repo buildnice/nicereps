@@ -265,8 +265,11 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     if (!was?.live || !was.typed || timer?.set !== was.set) return;
     const exercise = exercises.find((x) => x.sets.some((s) => s.id === was.set));
     const set = exercise?.sets.find((s) => s.id === was.set);
-    // Shortened below the time already rested: end now, so the usual alert still fires.
-    if (exercise && set) setTimer({ ...timer, phases: [{ ...timer.phases[0], seconds: Math.max(set.rest ?? exercise.rest, Math.ceil((Date.now() - timer.startedAt) / 1000)) }] });
+    if (!exercise || !set) return;
+    const elapsed = (Date.now() - timer.startedAt) / 1000;
+    const seconds = set.rest ?? exercise.rest;
+    // Shortened below the time already rested while still running: end now, so the usual alert fires once. A rest that already ended stays ended.
+    setTimer({ ...timer, phases: [{ ...timer.phases[0], seconds: phaseEnds(timer.phases, elapsed).ended ? seconds : Math.max(seconds, Math.ceil(elapsed)) }] });
   }, [edit, exercises, timer]);
   // Leaving the app mid-typing closes the keypad so the background countdown and end alert get the new length.
   useEffect(() => {
