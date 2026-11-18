@@ -193,6 +193,8 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const [menu, setMenu] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [swapping, setSwapping] = useState<string | null>(null);
+  const [notingAll, setNotingAll] = useState<string | null>(null);
+  const [notingThis, setNotingThis] = useState<string | null>(null);
   const [options, setOptions] = useState<{ id: string; name: string; guide: boolean; open: boolean } | null>(null);
   const [flagged, setFlagged] = useState<string[]>([]);
   const placed = useRef<{ y: number; height: number } | null>(null);
@@ -531,17 +533,20 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                     </Txt>
                   </Tap>
                 )}
-                <ExerciseNote key={`${exercise.exerciseId}:${visit}`} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} onFocus={() => setEdit(null)} save={run} />
-                <TextInput
+                {(!!exercise.exerciseNote || notingAll === exercise.id) && (
+                  <ExerciseNote key={`${exercise.exerciseId}:${visit}`} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} autoFocus={notingAll === exercise.id} onFocus={() => { setEdit(null); setNotingAll(exercise.id); }} save={run} />
+                )}
+                {(!!exercise.note || notingThis === exercise.id) && <TextInput
                   defaultValue={exercise.note ?? ''}
                   onChangeText={(t) => run(() => ops.noteExercise(db, exercise.id, t))}
-                  onFocus={() => setEdit(null)}
+                  autoFocus={notingThis === exercise.id}
+                  onFocus={() => { setEdit(null); setNotingThis(exercise.id); }}
                   placeholder="Note for this workout"
                   placeholderTextColor={c.faint}
                   accessibilityLabel={`${exercise.name} note for this workout`}
                   multiline
                   style={[styles.exerciseNote, { color: c.text }]}
-                />
+                />}
                 {swapping === exercise.id && (
                   <ExercisePicker
                     exclude={exercises.map((x) => x.exerciseId)}
@@ -697,6 +702,8 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
             </View>
             <View style={[styles.group, { backgroundColor: c.line, marginTop: 0 }]}>
               {([
+                ['Note for every workout', notingAll, setNotingAll, true],
+                ['Note for this workout', notingThis, setNotingThis, true],
                 ['History', history, setHistory, true],
                 ['How to', howTo, setHowTo, options.guide],
                 ['Copy as custom', copying, setCopying, true],
@@ -880,12 +887,13 @@ export function NewExercise({ from, onCreate, onFocus }: { from?: string; onCrea
   );
 }
 
-export function ExerciseNote({ exerciseId, name, note, onFocus, save = (op) => op() }: { exerciseId: string; name: string; note: string | null; onFocus?: () => void; save?: (op: () => unknown) => void }) {
+export function ExerciseNote({ exerciseId, name, note, autoFocus, onFocus, save = (op) => op() }: { exerciseId: string; name: string; note: string | null; autoFocus?: boolean; onFocus?: () => void; save?: (op: () => unknown) => void }) {
   const c = useColors();
   return (
     <TextInput
       defaultValue={note ?? ''}
       onChangeText={(t) => save(() => ops.setExerciseNote(db, exerciseId, t))}
+      autoFocus={autoFocus}
       onFocus={onFocus}
       placeholder="Note for every workout"
       placeholderTextColor={c.faint}
