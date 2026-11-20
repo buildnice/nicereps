@@ -35,7 +35,7 @@ ACTIVE WORKOUT (replaces home content)
   Set row        ->  Weight + reps (target greyed) + large Complete target
                      bodyweight lifts show + body weight under weight; tap to log it;
                      with no added weight, the field shows BW greyed
-  Prev line      ->  Matching set from last session; tap copies it. "· try 85" when every working set met its target
+  Prev line      ->  Matching set from last session; tap copies it. "· target reps hit - time to increment" when every working set met its target
   Below the list ->  Tiles, muscles worked
   Bottom dock    ->  Rest timer; full-width Finish the first time every set is complete
   Optional row   ->  Target RPE / logged RPE / rest / comment

@@ -88,8 +88,6 @@ export const volume = (sets: { type: SetType; completed: boolean; weight: number
 
 export const repMaxes = (estimate: number) => [3, 5, 8, 10].map((reps) => ({ reps, weight: estimate / (1 + reps / 30) }));
 
-export const weightStep = { kg: 2.5, lb: 5 };
-
 type Lift = { type: SetType; weight: number; unit?: WeightUnit; reps: number };
 export const unusual = (set: Lift, sessions: (Lift & { completed: boolean })[][]) => {
   if (set.type !== 'normal' || set.weight <= 0) return null;
@@ -102,10 +100,10 @@ export const unusual = (set: Lift, sessions: (Lift & { completed: boolean })[][]
   return null;
 };
 
-export const progressed = <S extends { type: SetType; completed?: boolean; weight: number; unit?: WeightUnit; reps: number; targetReps?: number | null }>(sets: S[]) => {
+export const progressed = (sets: { type: SetType; completed?: boolean; weight: number; reps: number; targetReps?: number | null }[]) => {
   const working = sets.filter((s) => s.type !== 'warm-up');
   const met = working.length > 0 && working.every((s) => s.completed && s.targetReps && s.reps >= s.targetReps);
-  return met ? sets.map((s) => (s.type !== 'warm-up' && s.weight > 0 ? { ...s, weight: Math.round((s.weight + weightStep[s.unit ?? 'kg']) * 100) / 100 } : s)) : sets;
+  return sets.map((s) => met && s.type !== 'warm-up' && s.weight > 0);
 };
 
 export const bodyWeightOn = (entries: { date: string; value: number; unit: WeightUnit }[], date: string) => {

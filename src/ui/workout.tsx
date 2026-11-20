@@ -1,7 +1,7 @@
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, AppState, type TextProps, BackHandler, Platform, Image, Keyboard, KeyboardAvoidingView, PanResponder, ScrollView, StyleSheet, TextInput, useWindowDimensions, Vibration, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeOut, interpolateColor, Keyframe, LayoutAnimationConfig, type SharedValue, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { ArrowDownIcon } from 'phosphor-react-native/src/icons/ArrowDown';
@@ -97,7 +97,7 @@ function useResumes() {
   return resumes;
 }
 
-function TimerCard({ timer, onChange }: { timer: Timer; onChange: (timer: Timer | null) => void }) {
+function TimerCard({ timer, onChange, onEdit }: { timer: Timer; onChange: (timer: Timer | null) => void; onEdit?: (seconds: number) => void }) {
   const c = useColors();
   const { fontScale } = useWindowDimensions();
   const elapsed = Math.max(0, useNow() - timer.startedAt) / 1000;
@@ -127,7 +127,13 @@ function TimerCard({ timer, onChange }: { timer: Timer; onChange: (timer: Timer 
     >
       <View>
         <Txt variant="caps" accessibilityLiveRegion="polite" style={{ color: c.bg, opacity: 0.6 }}>{phase.remaining > 0 ? phase.label : `${phase.label} done`}</Txt>
-        <Digits text={clock(phase.remaining)} variant="display" color={c.bg} down />
+        {onEdit ? (
+          <Tap accessibilityLabel={`${clock(phase.remaining)} left. Edit ${phase.label.toLowerCase()} length`} onPress={() => onEdit(phase.seconds)}>
+            <Digits text={clock(phase.remaining)} variant="display" color={c.bg} down accessible={false} />
+          </Tap>
+        ) : (
+          <Digits text={clock(phase.remaining)} variant="display" color={c.bg} down />
+        )}
       </View>
       <Txt variant="small" style={{ flexGrow: 1, flexBasis: 80, color: c.bg, opacity: 0.6 }}>
         of {clock(phase.seconds)}{timer.phases.length > 1 ? ` · ${phase.index + 1}/${timer.phases.length}` : ''}{'\n'}{timer.exercise}
@@ -177,6 +183,8 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     setOpen(exercise);
     setEdit(null);
     setMenu(null);
+    setNotingAll(null);
+    setNotingThis(null);
   };
   const reduce = useReducedMotion();
   const startedAt = Date.parse(workout.startedAt);
@@ -192,6 +200,9 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const [menu, setMenu] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
   const [swapping, setSwapping] = useState<string | null>(null);
+  const [notingAll, setNotingAll] = useState<string | null>(null);
+  const [notingThis, setNotingThis] = useState<string | null>(null);
+  const notes = useRef<Record<string, TextInput | null>>({});
   const [options, setOptions] = useState<{ id: string; exerciseId: string; name: string; guide: boolean; open: boolean } | null>(null);
   const [flagged, setFlagged] = useState<string[]>([]);
   const placed = useRef<{ y: number; height: number } | null>(null);
@@ -260,7 +271,11 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     if (!was?.live || !was.typed || timer?.set !== was.set) return;
     const exercise = exercises.find((x) => x.sets.some((s) => s.id === was.set));
     const set = exercise?.sets.find((s) => s.id === was.set);
-    if (exercise && set) setTimer({ ...timer, phases: [{ ...timer.phases[0], seconds: set.rest ?? exercise.rest }] });
+    if (!exercise || !set) return;
+    const elapsed = (Date.now() - timer.startedAt) / 1000;
+    const seconds = set.rest ?? exercise.rest;
+    // Shortened below the time already rested while still running: end now, so the usual alert fires once. A rest that already ended stays ended.
+    setTimer({ ...timer, phases: [{ ...timer.phases[0], seconds: phaseEnds(timer.phases, elapsed).ended ? seconds : Math.max(seconds, Math.ceil(elapsed)) }] });
   }, [edit, exercises, timer]);
   // Leaving the app mid-typing closes the keypad so the background countdown and end alert get the new length.
   useEffect(() => {
@@ -316,6 +331,12 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     clearTimeout(advancing.current);
     if (field === 'bodyWeight') return setEdit({ set: set.id, title: 'Body weight', field, text: String(bodyWeight ?? ''), fresh: true });
     setEdit({ set: set.id, title, field, text: timeFields.includes(field) ? timeDigits(set[field]) : String(set[field] ?? ''), fresh: true });
+  };
+  // Opens the running rest's set field prefilled with the timer's total, which +30s may have moved off the saved rest; the retime above applies it.
+  const editRest = (seconds: number) => {
+    const exercise = exercises.find((x) => x.sets.some((s) => s.id === timer?.set));
+    const set = exercise?.sets.find((s) => s.id === timer?.set);
+    if (exercise && set) startEdit(exercise.name, { ...set, rest: seconds }, 'rest');
   };
   const reveal = (bottom: number) => {
     const top = windowHeight - sheetHeight - space.s - dockHeight;
@@ -532,17 +553,20 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                     </Txt>
                   </Tap>
                 )}
-                <ExerciseNote key={`${exercise.exerciseId}:${visit}`} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} onFocus={() => setEdit(null)} save={run} />
-                <TextInput
+                {(!!exercise.exerciseNote || notingAll === exercise.id) && (
+                  <ExerciseNote key={`${exercise.exerciseId}:${visit}`} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} ref={(node) => { notes.current[`Note for every workout:${exercise.id}`] = node; }} onFocus={() => { setEdit(null); setNotingAll(exercise.id); }} save={run} />
+                )}
+                {(!!exercise.note || notingThis === exercise.id) && <TextInput
                   defaultValue={exercise.note ?? ''}
                   onChangeText={(t) => run(() => ops.noteExercise(db, exercise.id, t))}
-                  onFocus={() => setEdit(null)}
+                  ref={(node) => { notes.current[`Note for this workout:${exercise.id}`] = node; }}
+                  onFocus={() => { setEdit(null); setNotingThis(exercise.id); }}
                   placeholder="Note for this workout"
                   placeholderTextColor={c.faint}
                   accessibilityLabel={`${exercise.name} note for this workout`}
                   multiline
                   style={[styles.exerciseNote, { color: c.text }]}
-                />
+                />}
                 {swapping === exercise.id && (
                   <ExercisePicker
                     exclude={exercises.map((x) => x.exerciseId)}
@@ -591,7 +615,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                 set={set}
                 pr={prs.has(set.id)}
                 prev={exercise.mode === 'check' || !last?.sets[s]?.completed ? undefined : last.sets[s]}
-                next={up[s] ?? undefined}
+                next={up[s]}
                 mode={exercise.mode}
                 onDelete={() => removeSet(set.id)}
                 onComplete={() => complete(exercise, set)}
@@ -676,7 +700,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
         onLayout={(event) => setDockHeight(event.nativeEvent.layout.height)}
         style={[styles.dock, dockStyle]}
       >
-        {timer && <TimerCard timer={timer} onChange={setTimer} />}
+        {timer && <TimerCard timer={timer} onChange={setTimer} onEdit={timer.set ? editRest : undefined} />}
         {cta === 'show' && !finished && (
           <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(160)}>
             <Tap onPress={finish} style={[styles.done, { backgroundColor: c.accent }]}>
@@ -696,18 +720,10 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
               </Tap>
             </View>
             <View style={[styles.group, { backgroundColor: c.line, marginTop: 0 }]}>
-              <Tap
-                accessibilityLabel="History"
-                onPress={() => {
-                  setOptions({ ...options, open: false });
-                  router.push({ pathname: '/lift/[id]', params: { id: options.exerciseId, workout: workout.id } });
-                }}
-                style={[styles.option, { backgroundColor: c.surface }]}
-              >
-                <Txt variant="label">History</Txt>
-                <Icon of={CaretRightIcon} size="s" tone="faint" />
-              </Tap>
               {([
+                ['Note for every workout', notingAll, setNotingAll, true],
+                ['Note for this workout', notingThis, setNotingThis, true],
+                ['History', null, setHowTo, true],
                 ['How to', howTo, setHowTo, options.guide],
                 ['Copy as custom', copying, setCopying, true],
                 ['Swap with', swapping, setSwapping, true],
@@ -715,15 +731,23 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                 <Tap
                   key={label}
                   accessibilityLabel={label === 'Copy as custom' ? `Copy ${options.name} as a custom exercise` : label === 'Swap with' ? `Swap ${options.name} with another exercise` : label}
-                  accessibilityState={{ expanded: value === options.id }}
+                  accessibilityState={label === 'History' ? undefined : { expanded: value === options.id }}
                   onPress={() => {
-                    set(value === options.id ? null : options.id);
                     setOptions({ ...options, open: false });
+                    if (label === 'History') return router.push({ pathname: '/lift/[id]', params: { id: options.exerciseId, workout: workout.id } });
+                    if (!label.startsWith('Note')) return set(value === options.id ? null : options.id);
+                    set(options.id);
+                    // Waits out the modal sheet (Android raises no keyboard while it has window focus); blur first so an already-focused note re-opens the keyboard.
+                    setTimeout(() => {
+                      const note = notes.current[`${label}:${options.id}`];
+                      note?.blur();
+                      note?.focus();
+                    }, CLOSE_MS * 2);
                   }}
                   style={[styles.option, { backgroundColor: c.surface }]}
                 >
                   <Txt variant="label">{label}</Txt>
-                  {value === options.id && <Icon of={CheckIcon} size="s" tone="muted" />}
+                  {label === 'History' ? <Icon of={CaretRightIcon} size="s" tone="faint" /> : value === options.id && <Icon of={CheckIcon} size="s" tone="muted" />}
                 </Tap>
               ))}
             </View>
@@ -890,12 +914,13 @@ export function NewExercise({ from, onCreate, onFocus }: { from?: string; onCrea
   );
 }
 
-export function ExerciseNote({ exerciseId, name, note, onFocus, save = (op) => op() }: { exerciseId: string; name: string; note: string | null; onFocus?: () => void; save?: (op: () => unknown) => void }) {
+export function ExerciseNote({ exerciseId, name, note, ref, onFocus, save = (op) => op() }: { exerciseId: string; name: string; note: string | null; ref?: Ref<TextInput>; onFocus?: () => void; save?: (op: () => unknown) => void }) {
   const c = useColors();
   return (
     <TextInput
       defaultValue={note ?? ''}
       onChangeText={(t) => save(() => ops.setExerciseNote(db, exerciseId, t))}
+      ref={ref}
       onFocus={onFocus}
       placeholder="Note for every workout"
       placeholderTextColor={c.faint}
@@ -912,7 +937,7 @@ type SetRowProps = {
   set: LoggedSet & { pace: number | null };
   pr: boolean;
   prev?: SetFields;
-  next?: SetFields;
+  next?: boolean;
   mode: Mode;
   defaultRest: number;
   onDelete: () => void;
@@ -1116,8 +1141,8 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
                 </Tap>
               )}
               {prev && (
-                <Tap accessibilityLabel={`Set ${n} previous ${describeSet(prev, mode, units)}${next ? `, try ${inUnit(next, units).weight} ${units.weight}` : ''}, copy`} onPress={() => copy(prev)} hitSlop={8} style={styles.prev}>
-                  <Ink fill={fill} at={0.2} from={c.muted} to={soft} variant="small">Prev {describeSet(prev, mode, units)}{next ? ` · try ${inUnit(next, units).weight}` : ''}</Ink>
+                <Tap accessibilityLabel={`Set ${n} previous ${describeSet(prev, mode, units)}${next ? ', target reps hit - time to increment' : ''}, copy`} onPress={() => copy(prev)} hitSlop={8} style={styles.prev}>
+                  <Ink fill={fill} at={0.2} from={c.muted} to={soft} variant="small">Prev {describeSet(prev, mode, units)}{next ? ' · target reps hit - time to increment' : ''}</Ink>
                 </Tap>
               )}
             </View>

@@ -413,7 +413,7 @@ export const history = (db: Db, exercise?: string, limit?: number, before?: { da
 
 export const suggest = (db: Db, exercise: string, before?: { date: string; startedAt: string }) => {
   const last = history(db, exercise, 1, before)[0]?.exercises[0];
-  return last?.mode === 'reps' ? progressed(last.sets).map((s, i) => (s.weight !== last.sets[i].weight ? s : null)) : [];
+  return last?.mode === 'reps' ? progressed(last.sets) : [];
 };
 
 export const progress = (db: Db, exercise: string) => {

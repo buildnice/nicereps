@@ -20,8 +20,14 @@ name: Editing a completed set's rest retimes the running rest
 - tapOn: Done
 # The new length counts from the completion; the screenshot shows the time already spent kept.
 - assertVisible: "of 3:00.*"
+# Tapping the countdown opens the same field, prefilled with the timer's total.
+- tapOn: ".*Edit rest length"
+- assertVisible: {text: "Set 1 Rest, 3:00", selected: true}
+- runFlow: {file: common/type.yml, env: {KEYS: "330"}}
+- tapOn: Done
+- assertVisible: "of 3:30.*"
 # A length that has already passed ends the rest.
-- tapOn: "Set 1 Rest, 3:00"
+- tapOn: "Set 1 Rest, 3:30"
 - runFlow: {file: common/type.yml, env: {KEYS: "5"}}
 - tapOn: Done
 - extendedWaitUntil:
