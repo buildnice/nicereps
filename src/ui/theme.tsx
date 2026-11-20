@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode, type Ref } from 'react';
-import { Pressable, Text, View, type PressableProps, type StyleProp, type TextProps, type TextStyle, type ViewProps, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextProps, type TextStyle, type ViewProps, type ViewStyle } from 'react-native';
 import type { Icon as Phosphor } from 'phosphor-react-native';
 import Animated, { Easing, FadeInUp, FadeOutUp, LayoutAnimationConfig, useReducedMotion } from 'react-native-reanimated';
 
@@ -86,6 +86,8 @@ const scale = {
 export const type = Object.fromEntries(
   Object.entries(scale).map(([k, s]) => [k, { fontFamily: 'Montserrat', fontVariant: ['tabular-nums'], ...s }]),
 ) as { [K in keyof typeof scale]: TextStyle };
+
+export const noteInput: TextStyle = { ...type.input, minHeight: touch.min, paddingVertical: space.s, borderBottomWidth: StyleSheet.hairlineWidth };
 
 type Prototype = {
   scheme: Scheme;
