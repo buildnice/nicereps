@@ -15,6 +15,7 @@ import { DotsThreeVerticalIcon } from 'phosphor-react-native/src/icons/DotsThree
 import { PencilSimpleIcon } from 'phosphor-react-native/src/icons/PencilSimple';
 import { PlusIcon } from 'phosphor-react-native/src/icons/Plus';
 import { TrashIcon } from 'phosphor-react-native/src/icons/Trash';
+import { XIcon } from 'phosphor-react-native/src/icons/X';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Mode, Role, SetFields, SetType } from '@/data/queries';
@@ -556,17 +557,16 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                 {(!!exercise.exerciseNote || notingAll === exercise.id) && (
                   <ExerciseNote key={`${exercise.exerciseId}:${visit}`} exerciseId={exercise.exerciseId} name={exercise.name} note={exercise.exerciseNote} ref={(node) => { notes.current[`Note for every workout:${exercise.id}`] = node; }} onFocus={() => { setEdit(null); setNotingAll(exercise.id); }} save={run} />
                 )}
-                {(!!exercise.note || notingThis === exercise.id) && <TextInput
-                  defaultValue={exercise.note ?? ''}
-                  onChangeText={(t) => run(() => ops.noteExercise(db, exercise.id, t))}
-                  ref={(node) => { notes.current[`Note for this workout:${exercise.id}`] = node; }}
-                  onFocus={() => { setEdit(null); setNotingThis(exercise.id); }}
-                  placeholder="Note for this workout"
-                  placeholderTextColor={c.faint}
-                  accessibilityLabel={`${exercise.name} note for this workout`}
-                  multiline
-                  style={[styles.exerciseNote, { color: c.text }]}
-                />}
+                {(!!exercise.note || notingThis === exercise.id) && (
+                  <NoteInput
+                    note={exercise.note}
+                    placeholder="Note for this workout"
+                    label={`${exercise.name} note for this workout`}
+                    ref={(node) => { notes.current[`Note for this workout:${exercise.id}`] = node; }}
+                    onFocus={() => { setEdit(null); setNotingThis(exercise.id); }}
+                    onChange={(t) => run(() => ops.noteExercise(db, exercise.id, t))}
+                  />
+                )}
                 {swapping === exercise.id && (
                   <ExercisePicker
                     exclude={exercises.map((x) => x.exerciseId)}
@@ -915,19 +915,42 @@ export function NewExercise({ from, onCreate, onFocus }: { from?: string; onCrea
 }
 
 export function ExerciseNote({ exerciseId, name, note, ref, onFocus, save = (op) => op() }: { exerciseId: string; name: string; note: string | null; ref?: Ref<TextInput>; onFocus?: () => void; save?: (op: () => unknown) => void }) {
+  return <NoteInput note={note} placeholder="Note for every workout" label={`${name} note for every workout`} ref={ref} onFocus={onFocus} onChange={(t) => save(() => ops.setExerciseNote(db, exerciseId, t))} />;
+}
+
+function NoteInput({ note, placeholder, label, ref, onFocus, onChange }: { note: string | null; placeholder: string; label: string; ref?: Ref<TextInput>; onFocus?: () => void; onChange: (text: string) => void }) {
   const c = useColors();
+  const [text, setText] = useState(note ?? '');
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  const change = (t: string) => {
+    setText(t);
+    setArmed(false);
+    onChange(t);
+  };
   return (
-    <TextInput
-      defaultValue={note ?? ''}
-      onChangeText={(t) => save(() => ops.setExerciseNote(db, exerciseId, t))}
-      ref={ref}
-      onFocus={onFocus}
-      placeholder="Note for every workout"
-      placeholderTextColor={c.faint}
-      accessibilityLabel={`${name} note for every workout`}
-      multiline
-      style={[styles.exerciseNote, { color: c.text }]}
-    />
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+      <TextInput
+        value={text}
+        onChangeText={change}
+        ref={ref}
+        onFocus={onFocus}
+        placeholder={placeholder}
+        placeholderTextColor={c.faint}
+        accessibilityLabel={label}
+        multiline
+        style={[styles.exerciseNote, { color: c.text, flex: 1 }]}
+      />
+      {!!text.trim() && (
+        <Tap accessibilityLabel={armed ? `Tap again to clear ${label}` : `Clear ${label}`} onPress={() => (armed ? change('') : setArmed(true))} style={{ minWidth: touch.min, alignItems: 'center' }}>
+          <Icon of={XIcon} size="s" tone={armed ? 'warning' : 'muted'} />
+        </Tap>
+      )}
+    </View>
   );
 }
 

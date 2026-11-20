@@ -221,24 +221,16 @@ export const startWorkout = (
   transaction(db, () => {
     if (templateId && fromWorkoutId) throw new Error('Start from a template or a workout, not both');
     if (unfinishedWorkouts(db).length) throw new Error('Finish or discard the unfinished workout first');
+    const lastRun = numbers === 'last' && templateId ? q.workouts(db, 'finished_at IS NOT NULL AND template_id = ?', [templateId], 1)[0] : undefined;
     const plan = fromWorkoutId ? getWorkout(db, fromWorkoutId) : templateId ? q.templatePlan(db, templateId) : { name: 'Workout', exercises: [] };
     const id = createId();
     const groups: Record<string, string> = {};
-    // The last finished run of this template; the template keeps the set structure.
-    const lastRun = numbers === 'last' && templateId ? q.workouts(db, 'finished_at IS NOT NULL AND template_id = ?', [templateId], 1)[0] : undefined;
-    const unused = [...(lastRun?.exercises ?? [])];
     q.insertWorkout(db, { id, templateId: fromWorkoutId ? null : templateId, name: plan.name, date: localDate(now, timeZone), timeZone, startedAt: now.toISOString() });
-    plan.exercises.forEach((e) => {
+    (lastRun ?? plan).exercises.forEach((e: { exerciseId: string; superset: string | null; note?: string | null; sets: PlannedSet[] }) => {
       const workoutExerciseId = createId();
       q.insertWorkoutExercise(db, workoutExerciseId, id, e.exerciseId, e.superset ? (groups[e.superset] ??= createId()) : null);
-      const at = unused.findIndex((x) => x.exerciseId === e.exerciseId);
-      const last = at < 0 ? [] : unused.splice(at, 1)[0].sets;
-      e.sets.forEach((s: PlannedSet, i: number) => {
-        const p = last[i];
-        // A blank set left undone last time carries nothing over.
-        const set = p && (p.completed || p.weight) ? { ...s, weight: p.weight, unit: p.unit, reps: p.reps || p.targetReps || s.reps } : s;
-        q.insertSet(db, createId(), workoutExerciseId, { ...copied(set), reps: 0, targetReps: set.reps || set.targetReps || null, completed: false });
-      });
+      if (lastRun && e.note) q.setNote(db, 'workout_exercise', workoutExerciseId, e.note);
+      e.sets.forEach((s) => q.insertSet(db, createId(), workoutExerciseId, { ...copied(s), reps: 0, targetReps: s.reps || s.targetReps || null, completed: false }));
     });
     return id;
   });
