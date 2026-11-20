@@ -51,7 +51,7 @@ const usage = `Usage: nicereps <db-file> <command> [args]
   show <workout>                        an unfinished workout shows try <weight> where last session met every target; PR marks a set beating every earlier workout's weight, e1RM or hold
   history [exercise]
   summary <workout>                     duration, working sets, volume, records, muscles and each exercise's top set and trend
-  records <exercise>                    best weight, e1RM, rep maxes, reps at each weight, longest holds and each kind's per-workout trend (kg, holds in seconds); warm-ups excluded
+  records <exercise>                    best weight, e1RM, rep maxes, reps at each weight, weight at each rep count, longest holds and each kind's per-workout trend (kg, holds in seconds); warm-ups excluded
   totals [YYYY-MM-DD]                   muscle sets in the 7 days ending on the date, each with its exercises
   stats [week|month|all] [YYYY-MM-DD]   volume over the past 7 or 30 days or all time, weekly volume, then each lift's best weight, e1RM and hold
   prs                                   each lift's current weight, e1RM and hold records with the gain since the first workout in each trend, starred first, then most recent first
@@ -443,6 +443,7 @@ try {
         console.log(`  rep maxes    ${p.maxes.map((r) => `${r.reps}RM ≈ ${r.weight.toFixed(1)}`).join('  ')} ${p.estimate.set.unit}${body}`);
       }
       for (const r of p.reps) console.log(`  best reps    ${at(r)}`);
+      for (const r of p.weights) console.log(`  best weight  for ${r.set.reps} reps  ${at(r)}`);
       const hold = (h: NonNullable<typeof p.longest>) => `${clock(h.set.duration ?? 0)} at ${h.set.weight} ${h.set.unit}  ${h.date}  set ${h.set.id} in ${h.workoutId}`;
       if (p.longest) console.log(`  longest hold ${hold(p.longest)}`);
       for (const h of p.holds) console.log(`  longest at   ${hold(h)}`);

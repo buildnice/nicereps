@@ -131,6 +131,7 @@ export const records = <S extends { type: SetType; completed: boolean; weight: n
   let weight: Hit<S> | null = null;
   let estimate: (Hit<S> & { value: number }) | null = null;
   const atWeight = new Map<string, Hit<S>>();
+  const atReps = new Map<number, Hit<S>>();
   for (const { workoutId, date, sets } of [...sessions].reverse())
     for (const set of sets) {
       if (!isWorkingSet(set) || set.reps < 1) continue;
@@ -140,8 +141,10 @@ export const records = <S extends { type: SetType; completed: boolean; weight: n
       if (load(set) > 0 && (!estimate || load(set) * (30 + set.reps) > load(estimate.set) * (30 + estimate.set.reps))) estimate = { ...hit, value };
       const key = `${set.weight} ${set.unit}`;
       if (set.reps > (atWeight.get(key)?.set.reps ?? 0)) atWeight.set(key, hit);
+      const top = atReps.get(set.reps);
+      if (set.weight > 0 && (!top || kg(set) > kg(top.set))) atReps.set(set.reps, hit);
     }
-  return { weight, estimate, reps: [...atWeight.values()].sort((a, b) => kg(b.set) - kg(a.set)) };
+  return { weight, estimate, reps: [...atWeight.values()].sort((a, b) => kg(b.set) - kg(a.set)), weights: [...atReps.values()].sort((a, b) => a.set.reps - b.set.reps) };
 };
 
 export const holds = <S extends { type: SetType; completed: boolean; weight: number; unit?: WeightUnit; duration?: number | null }>(sessions: { workoutId: string; date: string; sets: S[] }[]) => {

@@ -13,3 +13,18 @@ name: Stats show the logged volume, PR and lift
     element: "Barbell Bench Press - Medium Grip, Best e1RM.*"
 - tapOn: "Barbell Bench Press - Medium Grip, Best e1RM.*"
 - assertVisible: History
+- assertVisible: "Set 1, 60 kg × 5"
+- tapOn: Records
+- assertVisible: "60 kg, 5 reps.*"
+- tapOn: Reps
+- assertVisible: "5 reps, 60 kg.*"
+- back
+- back
+- tapOn: Start workout
+- tapOn: Fresh workout
+- runFlow: {file: common/add-exercise.yml, env: {QUERY: Bench Press - Medium, NAME: Barbell Bench Press - Medium Grip}}
+- tapOn: Barbell Bench Press - Medium Grip options
+- tapOn: History
+- assertVisible: "Set 1, 60 kg × 5"
+- back
+- assertVisible: Barbell Bench Press - Medium Grip options

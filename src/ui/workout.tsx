@@ -196,7 +196,6 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const [discarding, setDiscarding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [deleted, setDeleted] = useState<ops.DeletedSet | null>(null);
-  const [history, setHistory] = useState<string | null>(null);
   const [howTo, setHowTo] = useState<string | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
   const [copying, setCopying] = useState<string | null>(null);
@@ -204,7 +203,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
   const [notingAll, setNotingAll] = useState<string | null>(null);
   const [notingThis, setNotingThis] = useState<string | null>(null);
   const notes = useRef<Record<string, TextInput | null>>({});
-  const [options, setOptions] = useState<{ id: string; name: string; guide: boolean; open: boolean } | null>(null);
+  const [options, setOptions] = useState<{ id: string; exerciseId: string; name: string; guide: boolean; open: boolean } | null>(null);
   const [flagged, setFlagged] = useState<string[]>([]);
   const placed = useRef<{ y: number; height: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -246,16 +245,18 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     return () => sub.remove();
   }, [hidden]);
 
-  useEffect(() => {
-    if (hidden) return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (renaming) nameInput.current?.blur();
-      else if (edit) setEdit(null);
-      else close();
-      return true;
-    });
-    return () => sub.remove();
-  }, [hidden, edit, renaming, close]);
+  useFocusEffect(
+    useCallback(() => {
+      if (hidden) return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (renaming) nameInput.current?.blur();
+        else if (edit) setEdit(null);
+        else close();
+        return true;
+      });
+      return () => sub.remove();
+    }, [hidden, edit, renaming, close]),
+  );
 
   const startTimer = (exercise: string, phases: Timer['phases'], set?: string) => setTimer(() => ({ workout: id, exercise, startedAt: Date.now(), phases, set }));
   // Retime a rest that was running when its set's rest field opened, once typing there ends, so keystrokes in between don't end it.
@@ -524,7 +525,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
               <Tap accessibilityLabel={`${exercise.name}, collapse`} onPress={() => show(null)} style={{ flex: 1, justifyContent: 'center' }}>
                 <Txt variant="heading">{exercise.name}</Txt>
               </Tap>
-              <Tap accessibilityLabel={`${exercise.name} options`} accessibilityState={{ expanded: options?.id === exercise.id && options.open }} onPress={() => { setMenu(exercise.id); setOptions({ id: exercise.id, name: exercise.name, guide: !!guide, open: true }); if (barEdit) setEdit(null); }} style={styles.menu}>
+              <Tap accessibilityLabel={`${exercise.name} options`} accessibilityState={{ expanded: options?.id === exercise.id && options.open }} onPress={() => { setMenu(exercise.id); setOptions({ id: exercise.id, exerciseId: exercise.exerciseId, name: exercise.name, guide: !!guide, open: true }); if (barEdit) setEdit(null); }} style={styles.menu}>
                 <Icon of={DotsThreeVerticalIcon} />
               </Tap>
             </View>
@@ -603,7 +604,6 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                     ))}
                   </Animated.View>
                 )}
-                {history === exercise.id && <ExerciseHistory name={exercise.name} mode={exercise.mode} workout={workout} />}
               </Animated.View>
             )}
             {exercise.sets.flatMap((set, s) => [
@@ -723,7 +723,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
               {([
                 ['Note for every workout', notingAll, setNotingAll, true],
                 ['Note for this workout', notingThis, setNotingThis, true],
-                ['History', history, setHistory, true],
+                ['History', null, setHowTo, true],
                 ['How to', howTo, setHowTo, options.guide],
                 ['Copy as custom', copying, setCopying, true],
                 ['Swap with', swapping, setSwapping, true],
@@ -731,9 +731,10 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                 <Tap
                   key={label}
                   accessibilityLabel={label === 'Copy as custom' ? `Copy ${options.name} as a custom exercise` : label === 'Swap with' ? `Swap ${options.name} with another exercise` : label}
-                  accessibilityState={{ expanded: value === options.id }}
+                  accessibilityState={label === 'History' ? undefined : { expanded: value === options.id }}
                   onPress={() => {
                     setOptions({ ...options, open: false });
+                    if (label === 'History') return router.push({ pathname: '/lift/[id]', params: { id: options.exerciseId, workout: workout.id } });
                     if (!label.startsWith('Note')) return set(value === options.id ? null : options.id);
                     set(options.id);
                     // Waits out the modal sheet (Android raises no keyboard while it has window focus); blur first so an already-focused note re-opens the keyboard.
@@ -746,7 +747,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
                   style={[styles.option, { backgroundColor: c.surface }]}
                 >
                   <Txt variant="label">{label}</Txt>
-                  {value === options.id && <Icon of={CheckIcon} size="s" tone="muted" />}
+                  {label === 'History' ? <Icon of={CaretRightIcon} size="s" tone="faint" /> : value === options.id && <Icon of={CheckIcon} size="s" tone="muted" />}
                 </Tap>
               ))}
             </View>
@@ -927,84 +928,6 @@ export function ExerciseNote({ exerciseId, name, note, ref, onFocus, save = (op)
       multiline
       style={[styles.exerciseNote, { color: c.text }]}
     />
-  );
-}
-
-export function ExerciseHistory({ name, mode, workout }: { name: string; mode: Mode; workout?: ReturnType<typeof ops.getWorkout> }) {
-  'use no memo';
-  const c = useColors();
-  const { units } = usePrototype();
-  const w = (set: LoggedSet) => inUnit(set, units).weight;
-  const [all, setAll] = useState(false);
-  const [shown, setShown] = useState<string | null>(null);
-  const [seen, setSeen] = useState(workout);
-  const [p, setP] = useState(() => ops.progress(db, name));
-  if (seen !== workout) {
-    setSeen(workout);
-    setP(ops.progress(db, name));
-  }
-  const max = (weight: number) => p.estimate && inUnit({ ...p.estimate.set, weight }, units).weight.toFixed(1);
-  const when = (date: string, workoutId: string) => (workoutId === workout?.id ? `${dayLabel(parseDate(date))} · this workout` : dayLabel(parseDate(date)));
-  const sets = (list: LoggedSet[], mark?: string) =>
-    list
-      .filter((s) => s.completed)
-      .map((s) => `${describeSet(s, mode, units)}${s.type === 'warm-up' ? ' warm-up' : ''}${s.id === mark ? ' ◆' : ''}`)
-      .join(', ') || 'no completed sets';
-  const records =
-    mode === 'reps'
-      ? [
-          p.weight && { label: 'Best weight', meta: `${w(p.weight.set)} ${units.weight} × ${p.weight.set.reps}`, hit: p.weight },
-          p.estimate && { label: p.estimate.set.bodyWeight ? 'Best e1RM with body weight' : 'Best e1RM', meta: `${inUnit({ ...p.estimate.set, weight: p.estimate.value }, units).weight.toFixed(1)} ${units.weight} · ${w(p.estimate.set)} × ${p.estimate.set.reps}`, hit: p.estimate },
-          ...p.reps.map((r) => ({ label: `Best reps at ${w(r.set)} ${units.weight}`, meta: `${r.set.reps} reps`, hit: r })),
-        ].filter((r) => !!r)
-      : mode === 'duration'
-        ? [
-            p.longest && { label: 'Longest hold', meta: `${clock(p.longest.set.duration ?? 0)} at ${w(p.longest.set)} ${units.weight}`, hit: p.longest },
-            ...p.holds.map((r) => ({ label: `Longest at ${w(r.set)} ${units.weight}`, meta: clock(r.set.duration ?? 0), hit: r })),
-          ].filter((r) => !!r)
-        : [];
-  return (
-    <Animated.View entering={FadeIn.duration(160)} style={{ marginTop: space.m, gap: space.xs }}>
-      {p.sessions.length === 0 && <Txt variant="meta" tone="muted">No finished sessions yet.</Txt>}
-      {records.map((r) => {
-        const source = p.sessions.find((x) => x.workoutId === r.hit.workoutId)!;
-        const id = `${r.label} ${r.hit.set.id}`;
-        return (
-          <View key={id}>
-            <Row title={r.label} meta={`${r.meta} · ${when(r.hit.date, r.hit.workoutId)}`} expanded={shown === id} onPress={() => setShown(shown === id ? null : id)} />
-            {shown === id && (
-              <Txt variant="meta" style={{ paddingVertical: space.s }}>
-                {source.name} · {sets(source.sets, r.hit.set.id)}
-              </Txt>
-            )}
-          </View>
-        );
-      })}
-      {p.estimate && (
-        <View accessible accessibilityLabel={`Rep maxes from best e1RM: ${p.maxes.map((m) => `${m.reps} reps about ${max(m.weight)} ${units.weight}`).join(', ')}`} style={[styles.maxes, { borderColor: c.line }]}>
-          <Txt variant="meta" tone="muted" style={{ width: '100%' }}>Rep maxes from best e1RM, {units.weight}{p.estimate.set.bodyWeight ? ' with body weight' : ''}</Txt>
-          {p.maxes.map((m) => (
-            <View key={m.reps} style={{ flexGrow: 1, minWidth: 64 }}>
-              <Txt variant="caps" tone="muted">{m.reps}RM</Txt>
-              <Txt variant="label">≈ {max(m.weight)}</Txt>
-            </View>
-          ))}
-        </View>
-      )}
-      {mode === 'reps' && <Txt variant="meta" tone="muted">Records use completed sets and exclude warm-ups. e1RM = {p.estimate?.set.bodyWeight ? '(body weight + weight)' : 'weight'} × (1 + reps / 30); rep maxes ≈ e1RM ÷ (1 + reps / 30). ◆ marks the record set.</Txt>}
-      {mode === 'duration' && <Txt variant="meta" tone="muted">Records use completed sets and exclude warm-ups. ◆ marks the record set.</Txt>}
-      {(all ? p.sessions : p.sessions.slice(0, 10)).map((x) => (
-        <View key={x.workoutId} style={{ paddingVertical: space.xs, borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }}>
-          <Txt variant="label">{when(x.date, x.workoutId)}</Txt>
-          <Txt variant="meta" tone="muted">{sets(x.sets)}</Txt>
-        </View>
-      ))}
-      {p.sessions.length > 10 && (
-        <Tap onPress={() => setAll(!all)} style={[styles.action, { borderColor: c.line }]}>
-          <Txt variant="label" tone="muted">{all ? 'Recent sessions' : `All ${p.sessions.length} sessions`}</Txt>
-        </Tap>
-      )}
-    </Animated.View>
   );
 }
 
@@ -1328,7 +1251,6 @@ const styles = StyleSheet.create({
   toggle: { minWidth: 44, alignItems: 'center', borderRadius: radius.pill, paddingHorizontal: space.s, paddingVertical: 2 },
   inline: { borderWidth: 2, borderColor: 'transparent' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.s },
-  maxes: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.xs, paddingVertical: space.s, borderTopWidth: StyleSheet.hairlineWidth },
   action: { flexGrow: 1, minWidth: touch.min, alignItems: 'center', borderRadius: radius.s, borderWidth: 1, borderStyle: 'dashed' },
   done: { marginHorizontal: space.m, minHeight: touch.primary, borderRadius: radius.l, alignItems: 'center', justifyContent: 'center' },
   iconAction: { flexDirection: 'row', justifyContent: 'center', gap: space.xs },

@@ -1,17 +1,19 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { CaretRightIcon } from 'phosphor-react-native/src/icons/CaretRight';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { convert, wholeIn } from '@/domain/rules';
+import type { Mode } from '@/data/queries';
+import { convert, isWorkingSet, kg, volume, wholeIn } from '@/domain/rules';
 import * as measures from '@/domain/measurements';
 import * as ops from '@/domain/workouts';
 import { db } from '@/platform/db';
 
-import { parseDate, Row, Section } from './home';
+import { dayLabel, parseDate, Row, Section } from './home';
 import { Page, Trend } from './measurements';
 import { today } from './plan';
-import { clock, inUnit, space, Txt, usePrototype, type Units } from './theme';
-import { Chip, ExerciseHistory, ExerciseNote } from './workout';
+import { clock, describeSet, Icon, inUnit, radius, space, Tap, Txt, useColors, usePrototype, type Units } from './theme';
+import { Chip, ExerciseNote, setLabel } from './workout';
 
 type Range = keyof typeof ops.volumeRanges;
 const rangeNames: Record<Range, string> = { week: 'Past week', month: 'Past month', all: 'All time' };
@@ -129,41 +131,155 @@ export function VolumeDetail() {
 }
 
 const readLift = (id: string) => {
-  const lift = ops.lifts(db).find((l) => l.id === id);
-  return lift && { lift, prs: ops.personalRecords(db).filter((r) => r.exerciseId === id).sort((a, b) => ops.recordKinds.indexOf(a.kind) - ops.recordKinds.indexOf(b.kind)) };
+  let lift;
+  try {
+    lift = { id, ...ops.exerciseDraft(db, id) };
+  } catch (e) {
+    if (!String(e).includes('Not found')) throw e;
+    return undefined;
+  }
+  return { lift, p: ops.progress(db, lift.name), prs: ops.personalRecords(db).filter((r) => r.exerciseId === id).sort((a, b) => ops.recordKinds.indexOf(a.kind) - ops.recordKinds.indexOf(b.kind)) };
 };
 
-export function LiftDetail() {
+type Session = ReturnType<typeof ops.progress>['sessions'][number];
+
+const dated = (date: string) => dayLabel(parseDate(date));
+
+function SessionCard({ session: x, mode, current, from }: { session: Session; mode: Mode; current: boolean; from: string }) {
+  const c = useColors();
   const { units } = usePrototype();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const done = x.sets.filter((s) => s.completed);
+  const working = done.filter(isWorkingSet);
+  const reps = working.reduce((n, s) => n + s.reps, 0);
+  const title = `${dated(x.date)}${current ? ' · this workout' : ''}`;
+  const average = reps && +convert(working.reduce((n, s) => n + kg(s) * s.reps, 0) / reps, 'kg', units.weight).toFixed(1);
+  return (
+    <View style={[styles.card, { backgroundColor: c.surface }]}>
+      <Tap accessibilityRole="button" accessibilityLabel={`${title}, ${x.name}`} onPress={() => router.push({ pathname: '/workout/[id]', params: { id: x.workoutId, from } })} style={styles.head}>
+        <View style={{ flex: 1 }}>
+          <Txt>{title}</Txt>
+          <Txt variant="meta" tone="muted">{x.name}</Txt>
+        </View>
+        <Icon of={CaretRightIcon} tone="faint" />
+      </Tap>
+      {done.map((s, i) => {
+        const set = mode === 'reps' ? `${inUnit(s, units).weight} ${units.weight} × ${s.reps}` : describeSet(s, mode, units);
+        const label = setLabel(done, i);
+        return (
+          <View key={s.id} accessible accessibilityLabel={`${label === 'W' ? 'Warm-up' : label === 'D' ? 'Drop set' : `Set ${label}`}, ${set}${s.comment ? `, ${s.comment}` : ''}`} style={[styles.set, { borderColor: c.line, opacity: s.type === 'warm-up' ? 0.5 : 1 }]}>
+            <View style={{ flexDirection: 'row', gap: space.m }}>
+              <Txt variant="label" tone="muted" style={{ width: 24 }}>{label}</Txt>
+              <Txt variant="label">{set}</Txt>
+            </View>
+            {s.comment && <Txt variant="meta" tone="muted" style={{ marginLeft: 24 + space.m }}>{s.comment}</Txt>}
+          </View>
+        );
+      })}
+      {!done.length && <Txt variant="meta" tone="muted" style={{ paddingVertical: space.s }}>No completed sets</Txt>}
+      {mode === 'reps' && reps > 0 && (
+        <Txt variant="meta" tone="muted" style={[styles.set, { borderColor: c.line }]}>
+          Volume {volumeLabel(volume(x.sets), units.weight)} · {reps} reps · Avg {average} {units.weight}
+        </Txt>
+      )}
+    </View>
+  );
+}
+
+export function LiftDetail() {
+  const c = useColors();
+  const { units } = usePrototype();
+  const { id, workout } = useLocalSearchParams<{ id: string; workout?: string }>();
   const [state, setState] = useState(() => readLift(id));
+  const [tab, setTab] = useState<'history' | 'records'>('history');
+  const [by, setBy] = useState<'weight' | 'reps'>('weight');
+  const [all, setAll] = useState(false);
   useFocusEffect(useCallback(() => setState(readLift(id)), [id]));
   if (!state) return <Page title="Stats"><Txt tone="muted" style={{ marginTop: space.l }}>Lift not found</Txt></Page>;
-  const { lift, prs } = state;
+  const { lift, p, prs } = state;
+  const w = (s: Session['sets'][number], weight = s.weight) => inUnit({ ...s, weight }, units).weight;
+  const open = (workoutId: string) => () => router.push({ pathname: '/workout/[id]', params: { id: workoutId, from: lift.name } });
+  const rows =
+    lift.mode === 'duration'
+      ? p.holds.map((r) => ({ hit: r, title: r.set.weight ? `${w(r.set)} ${units.weight}` : 'Bodyweight', meta: clock(r.set.duration ?? 0) }))
+      : lift.mode !== 'reps'
+        ? []
+        : by === 'weight'
+          ? p.reps.map((r) => ({ hit: r, title: `${w(r.set)} ${units.weight}`, meta: `${r.set.reps} rep${r.set.reps === 1 ? '' : 's'}` }))
+          : p.weights.map((r) => ({ hit: r, title: `${r.set.reps} rep${r.set.reps === 1 ? '' : 's'}`, meta: `${w(r.set)} ${units.weight}` }));
+  const max = (weight: number) => p.estimate && w(p.estimate.set, weight).toFixed(1);
   return (
     <Page title={lift.name}>
-      <Section title="Note"><ExerciseNote exerciseId={lift.id} name={lift.name} note={lift.note} /></Section>
-      {prs.map((r) => [r, ...recordLabel(r, units).split(' · ')] as const).map(([r, best, change]) => (
-        <Section key={r.kind} title={kindNames[r.kind]}>
-          <Row
-            title={best}
-            meta={change}
-            starred={r.starred}
-            onPress={() => {
-              ops.starRecord(db, r.exerciseId, r.kind, !r.starred);
-              setState(readLift(id));
-            }}
-          />
-          {r.trend.length > 1 && <RecordTrend record={r} />}
-        </Section>
-      ))}
-      <Section title="History">
-        <ExerciseHistory name={lift.name} mode={lift.mode} />
-      </Section>
+      <View accessibilityRole="radiogroup" accessibilityLabel="Lift view" style={[styles.chips, { marginTop: space.m }]}>
+        <Chip label="History" selected={tab === 'history'} onPress={() => setTab('history')} />
+        <Chip label="Records" selected={tab === 'records'} onPress={() => setTab('records')} />
+      </View>
+      {tab === 'history' ? (
+        <>
+          {!p.sessions.length && <Txt variant="meta" tone="muted" style={{ marginTop: space.l }}>No finished sessions yet.</Txt>}
+          {(all ? p.sessions : p.sessions.slice(0, 10)).map((x) => (
+            <SessionCard key={x.workoutId} session={x} mode={lift.mode} current={x.workoutId === workout} from={lift.name} />
+          ))}
+          {p.sessions.length > 10 && (
+            <Tap onPress={() => setAll(!all)} style={[styles.more, { borderColor: c.line }]}>
+              <Txt variant="label" tone="muted">{all ? 'Recent sessions' : `All ${p.sessions.length} sessions`}</Txt>
+            </Tap>
+          )}
+        </>
+      ) : (
+        <>
+          {(lift.mode === 'reps' || lift.mode === 'duration') && (
+            <Section title={lift.mode === 'reps' ? 'Best sets' : 'Longest holds'}>
+              {lift.mode === 'reps' && (
+                <View accessibilityRole="radiogroup" accessibilityLabel="Best sets by" style={[styles.chips, { marginTop: 0, marginBottom: space.s }]}>
+                  <Chip label="Weight" selected={by === 'weight'} onPress={() => setBy('weight')} />
+                  <Chip label="Reps" selected={by === 'reps'} onPress={() => setBy('reps')} />
+                </View>
+              )}
+              {!rows.length && <Txt variant="meta" tone="muted">Finish a workout with a completed working set and its records show here.</Txt>}
+              {rows.map((r) => (
+                <Row key={r.hit.set.id + r.title} title={r.title} meta={`${r.meta} · ${dated(r.hit.date)}`} onPress={open(r.hit.workoutId)} />
+              ))}
+            </Section>
+          )}
+          {prs.map((r) => [r, ...recordLabel(r, units).split(' · ')] as const).map(([r, best, change]) => (
+            <Section key={r.kind} title={kindNames[r.kind]}>
+              <Row
+                title={best}
+                meta={change}
+                starred={r.starred}
+                onPress={() => {
+                  ops.starRecord(db, r.exerciseId, r.kind, !r.starred);
+                  setState(readLift(id));
+                }}
+              />
+              {r.trend.length > 1 && <RecordTrend record={r} />}
+            </Section>
+          ))}
+          {p.estimate && (
+            <Section title="Rep maxes" aside={`${units.weight}${p.estimate.set.bodyWeight ? ' with body weight' : ''}`}>
+              <View accessible accessibilityLabel={`Rep maxes from best e1RM: ${p.maxes.map((m) => `${m.reps} reps about ${max(m.weight)} ${units.weight}`).join(', ')}`} style={styles.maxes}>
+                {p.maxes.map((m) => (
+                  <View key={m.reps} style={{ flexGrow: 1, minWidth: 64 }}>
+                    <Txt variant="caps" tone="muted">{m.reps}RM</Txt>
+                    <Txt variant="label">≈ {max(m.weight)}</Txt>
+                  </View>
+                ))}
+              </View>
+              <Txt variant="small" tone="muted" style={{ marginTop: space.s }}>From best e1RM = {p.estimate.set.bodyWeight ? '(body weight + weight)' : 'weight'} × (1 + reps / 30), working sets only.</Txt>
+            </Section>
+          )}
+          <Section title="Note"><ExerciseNote exerciseId={lift.id} name={lift.name} note={lift.note} /></Section>
+        </>
+      )}
     </Page>
   );
 }
 
 const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s },
+  head: { flexDirection: 'row', alignItems: 'center', paddingBottom: space.s },
+  card: { borderRadius: radius.l, padding: 18, marginTop: space.m },
+  set: { paddingVertical: space.s, borderTopWidth: StyleSheet.hairlineWidth, gap: space.xs },
+  more: { alignItems: 'center', justifyContent: 'center', minHeight: 44, borderWidth: 1, borderRadius: radius.pill, marginTop: space.m },
+  maxes: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.xs },
 });
