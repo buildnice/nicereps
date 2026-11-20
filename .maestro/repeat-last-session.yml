@@ -1,0 +1,50 @@
+appId: com.buildnice.nicereps
+name: Repeat last session copies the template's last run; a note clears on the second tap of its X
+---
+- runFlow: common/launch.yml
+- runFlow: common/bench-workout.yml
+- scrollUntilVisible:
+    element: Save as template
+- tapOn: Save as template
+- eraseText
+- inputText: Push A
+- hideKeyboard
+- tapOn: Save
+- assertVisible: Saved template Push A
+- back
+- scrollUntilVisible:
+    element: "Push A, 1 exercise"
+- tapOn: "Push A, 1 exercise"
+- tapOn: Start
+- tapOn: "Start from template.*"
+- tapOn: Barbell Bench Press - Medium Grip options
+- tapOn: Swap Barbell Bench Press - Medium Grip with another exercise
+- tapOn: Search exercises
+- inputText: Incline Dumbbell Pr
+- hideKeyboard
+- tapOn: "Incline Dumbbell Press, .*"
+- tapOn: Incline Dumbbell Press options
+- tapOn: Note for this workout
+- waitForAnimationToEnd
+- inputText: Bench taken
+- hideKeyboard
+- runFlow: {file: common/set.yml, env: {N: "1", WEIGHT: "25", REPS: "10"}}
+- runFlow: common/finish.yml
+- back
+- scrollUntilVisible:
+    element: "Push A, 1 exercise"
+- tapOn: "Push A, 1 exercise"
+- tapOn: Start
+- tapOn: "Repeat last session.*"
+- assertVisible: Incline Dumbbell Press
+- assertNotVisible: Barbell Bench Press - Medium Grip
+- assertVisible: Set 1 weight, 25
+- assertVisible: Bench taken
+- tapOn: Incline Dumbbell Press options
+- tapOn: Note for this workout
+- waitForAnimationToEnd
+- hideKeyboard
+- tapOn: Clear Incline Dumbbell Press note for this workout
+- tapOn: Tap again to clear Incline Dumbbell Press note for this workout
+- assertNotVisible: Bench taken
+- assertNotVisible: Clear Incline Dumbbell Press note for this workout
