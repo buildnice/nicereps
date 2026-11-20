@@ -36,7 +36,7 @@ import { dayLabel, parseDate, Row, useNow } from './home';
 import { parse, type Draft } from './draft';
 import { Keypad, styles as sheet } from './keypad';
 import { BottomSheet, CLOSE_MS, OPEN_MS } from './sheet';
-import { clock, describeSet, Digits, Icon, inUnit, radius, space, Tap, touch, Txt, type, useColors, usePrototype } from './theme';
+import { clock, describeSet, Digits, Icon, inUnit, noteInput, radius, space, Tap, touch, Txt, type, useColors, usePrototype } from './theme';
 
 type LoggedSet = SetFields & { id: string };
 export type Field = 'weight' | 'reps' | 'duration' | 'distance' | 'recovery' | 'rounds' | 'targetRpe' | 'rpe' | 'rest';
@@ -482,7 +482,7 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
         placeholderTextColor={c.faint}
         accessibilityLabel="Workout note"
         multiline
-        style={[styles.note, { backgroundColor: c.surface, color: c.text }]}
+        style={[noteInput, { marginTop: space.s, color: c.text, borderColor: c.line }]}
       />
 
       {exercises.map((exercise, e) => {
@@ -943,7 +943,7 @@ function NoteInput({ note, placeholder, label, ref, onFocus, onChange }: { note:
         placeholderTextColor={c.faint}
         accessibilityLabel={label}
         multiline
-        style={[styles.exerciseNote, { color: c.text, flex: 1 }]}
+        style={[noteInput, { color: c.text, borderColor: c.line, flex: 1 }]}
       />
       {!!text.trim() && (
         <Tap accessibilityLabel={armed ? `Tap again to clear ${label}` : `Clear ${label}`} onPress={() => (armed ? change('') : setArmed(true))} style={{ minWidth: touch.min, alignItems: 'center' }}>
@@ -1174,38 +1174,36 @@ function SetRow({ label, n, set, pr, prev, mode, defaultRest, next, onDelete, on
             <Ink fill={fill} at={0.2} from={c.muted} to={soft} variant="meta" style={{ paddingLeft: space.s, paddingBottom: space.s }}>Pace {clock(speed)} /{units.distance}</Ink>
           )}
         </View>
-        {visible.some((f) => f !== 'plates') && (
+        {visible.some((f) => f !== 'plates' && f !== 'comment') && (
           <View style={[styles.group, { backgroundColor: c.line }]}>
-            {visible.filter((f) => f !== 'plates').map((field) =>
-              field === 'comment' ? (
-                <TextInput
-                  key={field}
-                  defaultValue={set.comment ?? ''}
-                  onChangeText={(t) => onChange({ comment: t })}
-                  onFocus={() => onEdit(null)}
-                  placeholder="Add a comment"
-                  placeholderTextColor={c.faint}
-                  accessibilityLabel={`Set ${n} comment`}
-                  multiline
-                  style={[type.body, styles.option, styles.inline, { paddingVertical: space.s, color: c.text, backgroundColor: c.raised }]}
-                />
-              ) : (
-                <Tap
-                  key={field}
-                  accessibilityLabel={`Set ${n} ${fieldNames[field]}, ${shown(field) || (field === 'rest' ? clock(defaultRest) : 'empty')}`}
-                  ref={(node) => { fields.current[field] = node; }}
-                  accessibilityState={{ selected: editing?.field === field }}
-                  onPress={() => onEdit(field)}
-                  style={[styles.option, styles.inline, { backgroundColor: c.raised }, editing?.field === field && { borderColor: c.text }]}
-                >
-                  <Txt variant="label" tone="muted">{fieldNames[field]}</Txt>
-                  <Txt variant="value" style={[{ color: shown(field) ? c.text : c.faint }, highlight(field)]}>
-                    {shown(field) || (field === 'rest' ? clock(defaultRest) : '–')}
-                  </Txt>
-                </Tap>
-              ),
-            )}
+            {visible.filter((f) => f !== 'plates' && f !== 'comment').map((field) => (
+              <Tap
+                key={field}
+                accessibilityLabel={`Set ${n} ${fieldNames[field]}, ${shown(field) || (field === 'rest' ? clock(defaultRest) : 'empty')}`}
+                ref={(node) => { fields.current[field] = node; }}
+                accessibilityState={{ selected: editing?.field === field }}
+                onPress={() => onEdit(field)}
+                style={[styles.option, styles.inline, { backgroundColor: c.raised }, editing?.field === field && { borderColor: c.text }]}
+              >
+                <Txt variant="label" tone="muted">{fieldNames[field]}</Txt>
+                <Txt variant="value" style={[{ color: shown(field) ? c.text : c.faint }, highlight(field)]}>
+                  {shown(field) || (field === 'rest' ? clock(defaultRest) : '–')}
+                </Txt>
+              </Tap>
+            ))}
           </View>
+        )}
+        {visible.includes('comment') && (
+          <TextInput
+            defaultValue={set.comment ?? ''}
+            onChangeText={(t) => onChange({ comment: t })}
+            onFocus={() => onEdit(null)}
+            placeholder="Add a comment"
+            placeholderTextColor={c.faint}
+            accessibilityLabel={`Set ${n} comment`}
+            multiline
+            style={[noteInput, { marginTop: space.s, color: c.text, borderColor: c.line }]}
+          />
         )}
       </Animated.View>
       <BottomSheet modal open={picking} onClose={() => setPicking(false)}>
@@ -1279,7 +1277,6 @@ const styles = StyleSheet.create({
   iconAction: { flexDirection: 'row', justifyContent: 'center', gap: space.xs },
   dock: { position: 'absolute', left: 0, right: 0, gap: space.s },
   rest: { marginHorizontal: space.m, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.m, borderRadius: radius.l, padding: space.l },
-  exerciseNote: { paddingVertical: space.s, minHeight: touch.min, ...type.meta, fontWeight: '500' },
   note: { borderRadius: radius.s, paddingHorizontal: space.m, minHeight: touch.min, ...type.input, marginTop: space.s },
   chip: { paddingHorizontal: space.m, borderRadius: radius.pill },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.s },
