@@ -20,7 +20,6 @@ name: Stats show the logged volume, PR and lift
 - assertVisible: "5 reps, 60 kg.*"
 - back
 - back
-# History from an in-progress workout's ⋮ opens the same page and back keeps the workout.
 - tapOn: Start workout
 - tapOn: Fresh workout
 - runFlow: {file: common/add-exercise.yml, env: {QUERY: Bench Press - Medium, NAME: Barbell Bench Press - Medium Grip}}

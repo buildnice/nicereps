@@ -234,7 +234,6 @@ export function Workout({ id, hidden, onMinimise, onExit }: WorkoutProps) {
     return () => sub.remove();
   }, [hidden]);
 
-  // Focus-scoped so a page pushed over the workout (the lift page) gets hardware back.
   useFocusEffect(
     useCallback(() => {
       if (hidden) return;
