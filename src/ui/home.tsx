@@ -67,14 +67,11 @@ export function Strip({ workout, onPress }: { workout: Unfinished; onPress?: () 
       onPress={onPress ?? (() => router.dismissTo({ pathname: '/', params: { open: workout.id } }))}
       style={[styles.strip, { backgroundColor: c.text }]}
     >
-      <View style={styles.stripSide} />
       <Txt variant="label" style={{ color: c.bg, flexShrink: 1 }}>Resume workout</Txt>
       <Digits text={elapsed} variant="meta" color={c.bg} accessible={false} style={{ opacity: 0.6 }} />
-      <View style={[styles.stripSide, styles.stripEnd]}>
-        {rest && <Txt variant="caps" style={{ color: c.bg, opacity: 0.6 }}>{rest.label}</Txt>}
-        {rest && <Digits text={rest.left} variant="label" color={c.bg} accessible={false} down />}
-        <Icon of={CaretRightIcon} tone="bg" style={{ opacity: 0.6 }} />
-      </View>
+      {rest && <Txt variant="caps" style={{ color: c.bg, opacity: 0.6 }}>{rest.label}</Txt>}
+      {rest && <Digits text={rest.left} variant="label" color={c.bg} accessible={false} down />}
+      <Icon of={CaretRightIcon} tone="bg" style={{ opacity: 0.6 }} />
     </Tap>
   );
 }
@@ -507,9 +504,7 @@ const styles = StyleSheet.create({
   breakdown: { paddingLeft: space.l, paddingBottom: space.s },
   breakdownRow: { flexDirection: 'row', gap: space.s, paddingVertical: space.xs },
   track: { flex: 1, height: 8, borderRadius: 4, overflow: 'hidden' },
-  strip: { flexDirection: 'row', alignItems: 'center', columnGap: space.s, paddingHorizontal: space.xl, paddingVertical: space.xs },
-  // Equal-growing sides centre the name; the end side keeps its content width so rest/caret never overlap it.
-  stripSide: { flexGrow: 1, flexBasis: 0 },
-  stripEnd: { flexBasis: 'auto', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: space.s },
+  // The whole group (label, elapsed, rest, caret) centres as one, so a rest timer never pushes the label off-centre.
+  strip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', columnGap: space.s, paddingHorizontal: space.xl, paddingVertical: space.xs },
   ghost: { alignSelf: 'flex-start', marginTop: space.m, paddingHorizontal: space.l, borderWidth: 1, borderRadius: radius.pill },
 });
