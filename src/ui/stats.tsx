@@ -134,7 +134,8 @@ const readLift = (id: string) => {
   let lift;
   try {
     lift = { id, ...ops.exerciseDraft(db, id) };
-  } catch {
+  } catch (e) {
+    if (!String(e).includes('Not found')) throw e;
     return undefined;
   }
   return { lift, p: ops.progress(db, lift.name), prs: ops.personalRecords(db).filter((r) => r.exerciseId === id).sort((a, b) => ops.recordKinds.indexOf(a.kind) - ops.recordKinds.indexOf(b.kind)) };
@@ -208,7 +209,7 @@ export function LiftDetail() {
   const max = (weight: number) => p.estimate && w(p.estimate.set, weight).toFixed(1);
   return (
     <Page title={lift.name}>
-      <View accessibilityRole="radiogroup" accessibilityLabel="Lift view" style={styles.chips}>
+      <View accessibilityRole="radiogroup" accessibilityLabel="Lift view" style={[styles.chips, { marginTop: space.m }]}>
         <Chip label="History" selected={tab === 'history'} onPress={() => setTab('history')} />
         <Chip label="Records" selected={tab === 'records'} onPress={() => setTab('records')} />
       </View>
