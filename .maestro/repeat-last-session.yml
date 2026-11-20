@@ -12,7 +12,6 @@ name: Repeat last session copies the template's last run; a note clears on the s
 - tapOn: Save
 - assertVisible: Saved template Push A
 - back
-# First run of the template: swap Bench for Incline and leave a note for this workout.
 - scrollUntilVisible:
     element: "Push A, 1 exercise"
 - tapOn: "Push A, 1 exercise"
@@ -32,7 +31,6 @@ name: Repeat last session copies the template's last run; a note clears on the s
 - runFlow: {file: common/set.yml, env: {N: "1", WEIGHT: "25", REPS: "10"}}
 - runFlow: common/finish.yml
 - back
-# Repeat last session brings back the swap, its numbers and the note.
 - scrollUntilVisible:
     element: "Push A, 1 exercise"
 - tapOn: "Push A, 1 exercise"
@@ -42,7 +40,6 @@ name: Repeat last session copies the template's last run; a note clears on the s
 - assertNotVisible: Barbell Bench Press - Medium Grip
 - assertVisible: Set 1 weight, 25
 - assertVisible: Bench taken
-# The note's X arms on the first tap and clears on the second.
 - tapOn: Incline Dumbbell Press options
 - tapOn: Note for this workout
 - waitForAnimationToEnd
