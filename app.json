@@ -29,6 +29,7 @@
       },
       "permissions": [
         "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
         "android.permission.health.WRITE_EXERCISE",
         "android.permission.health.WRITE_WEIGHT",
         "android.permission.health.READ_WEIGHT"
