@@ -78,9 +78,5 @@ class RestCountdownModule : Module() {
     Function("clear") {
       appContext.reactContext?.let { clear(it) }
     }
-
-    Function("exact") {
-      Build.VERSION.SDK_INT < 31 || appContext.reactContext?.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
-    }
   }
 }

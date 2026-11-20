@@ -1,6 +1,4 @@
 import { requireOptionalNativeModule } from 'expo';
-import Constants from 'expo-constants';
-import * as IntentLauncher from 'expo-intent-launcher';
 import * as Notifications from 'expo-notifications';
 import { AppState, Platform } from 'react-native';
 
@@ -13,7 +11,7 @@ export type Timer = { workout: string; exercise: string; startedAt: number; phas
 
 let queue = Promise.resolve();
 
-const countdown = requireOptionalNativeModule<{ show(titles: string[], body: string, ends: number[]): void; clear(): void; exact(): boolean }>('RestCountdown');
+const countdown = requireOptionalNativeModule<{ show(titles: string[], body: string, ends: number[]): void; clear(): void }>('RestCountdown');
 
 const live = (timer: Timer | null) => {
   void syncActivity(timer).catch(() => undefined);
@@ -90,12 +88,6 @@ async function apply(timer: Timer | null, ask: boolean) {
   for (const n of await Notifications.getPresentedNotificationsAsync())
     if (n.request.identifier.startsWith('timer-')) await Notifications.dismissNotificationAsync(n.request.identifier);
   if (!timer || !(await allowed(ask))) return;
-  if (Platform.OS === 'android' && Platform.Version >= 34 && !readSetting('exactAlarmAsked') && !countdown?.exact()) {
-    writeSetting('exactAlarmAsked', '1');
-    void IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.REQUEST_SCHEDULE_EXACT_ALARM, {
-      data: `package:${Constants.expoConfig?.android?.package}`,
-    }).catch(() => undefined);
-  }
   const { sound, haptics } = alerts();
   const key = `${sound ? 's' : ''}${haptics ? 'v' : ''}` as keyof typeof channels;
   const channelId = `timer-${key}`;
